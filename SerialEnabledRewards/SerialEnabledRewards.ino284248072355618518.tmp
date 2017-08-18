@@ -1,0 +1,253 @@
+/* IR detectection using interrupt pins for the sensor shield setup.
+    It sends an output the serial monitor and to the pumps.
+    A well is active only if serial input allows it.
+
+  Alex Gonzalez
+  Updated: 8/8/17
+*/
+
+const long DETECT_TIME_THR  = 500; // in ms
+const long Well_LED_TimeDur = 2000; // in ms
+const long Pump_ON_DUR      = 500; // in ms (100ms=0.25ml; 40ms=0.1ml)
+const bool IR_Detect_Val = false; // default value for detection
+const bool Pump_ON = LOW; // LOW activates the pump
+const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
+const int nWells = 6; // number of reward wells
+
+/*  ***************************
+    Declaration of Arduino Pins
+*/
+// PINs for CUE signals output and control.
+const int CUEs1 = 16;
+const int CUEs2 = 17;
+
+// TTL Well LED Pins
+const int TTL_LED_Pins[6] = {4, 5, 6, 7, 8, 9};
+
+// TTL WELL IR Detect Pins
+const int TTL_IR_Pins[6] = {10, 11, 12, 26, 27, 28};
+
+// TTL CUE Code Pins
+const int TTL_CUE_Pins[4] = {29, 30, 31, 32};
+
+// TTL Reward Delivered Pin (one pump activated)
+const int TTL_RD_Pin = 33;
+
+// Pins for the Pump outputs
+const int Pumps_Pins[6] = {34, 35, 36, 37, 38, 39};
+
+// Interrupt Pins for the input IR detects
+const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
+
+// LED outout pins LEDs
+const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
+/* **********************************
+   End of Declaration of Arduino Pins
+*/
+
+// Well State Variables:
+bool Well_IR_State[nWells]; // state variable for the interrupts
+bool Well_LED_State[nWells]; // variable LED indicating on/off
+bool Well_Active_State[nWells]; // state variable indicating active well
+bool Pump_State[nWells]; // Pump: on/off
+
+// Time references
+unsigned long Well_LED_TimeRef[nWells]; // time reference for LED on
+unsigned long Well_LED_Timer[nWells];   // timer indicating how long LED has been on
+unsigned long Well_IR_TimeRef[nWells];  // time reference: for IR detection
+unsigned long Well_IR_Timer[nWells];    // timer for how long IR has been on.
+unsigned long PumpTimeRef[nWells];      // time ref for pump on
+unsigned long PumpTimer[nWells];        // timer for how long pump has been on
+
+// Setup
+void setup() {
+  //  state variables & time references initiation
+  for (int ii = 0; ii < nWells; ii++) {
+
+    Well_IR_State[ii] = false; //LOW = detect;
+    Well_LED_State[ii] = false;
+    Pump_State[ii] = false;
+
+    Well_IR_TimeRef[ii] = 15000UL;
+    PumpTimeRef[ii] = 15000UL;
+
+    PumpTimer[ii] = 0;
+    Well_IR_Timer[ii] = 0;
+    Well_LED_Timer[ii] = 0;;
+  }
+
+  // J LEDs
+  for (int ii = 0; ii < nWells; ii++) {
+    // set LED pins to outputs and to low
+    pinMode(Well_LED_Pins[ii], OUTPUT);
+    digitalWrite(Well_LED_Pins[ii], LOW);
+
+    // IR inputs
+    pinMode(Well_IR_Pins[ii], INPUT_PULLUP);
+
+    // Pump outputs
+    pinMode(Pumps_Pins[ii], OUTPUT);
+    digitalWrite(Pumps_Pins[ii], HIGH);
+  }
+  // Attach interrupts independently
+  attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[0]), IR_Detect1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[1]), IR_Detect2, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[2]), IR_Detect3, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[3]), IR_Detect4, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[4]), IR_Detect5, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[5]), IR_Detect6, CHANGE);
+
+  delay(4000);
+  Serial.begin(9600);
+  Serial.println("Initiation complete. Waiting for a detection.");
+}
+
+//Main
+void loop() {
+
+  for (int ii = 0; ii < nWells; ii++) {
+    // check status of well, and that not currently active
+
+    if (WellDetectThrCheck(ii)) {
+      Deliver_Reward(ii);
+      Well_LED_ON(ii);
+    }
+
+    // turn off pump after Pump_ON_DUR duration
+    if (Pump_State[ii] == true) {
+      PumpTimer[ii] = millis() - PumpTimeRef[ii];
+      if (PumpTimer[ii] >= Pump_ON_DUR) {
+        TurnOFFPump(ii);
+      }
+    }
+
+    // turn off output after the output duration
+    if (Well_LED_State[ii] == true) {
+      Well_LED_Timer[ii] = millis() - Well_LED_TimeRef[ii];
+      if (Well_LED_Timer[ii] >= Well_LED_TimeDur) {
+        Well_LED_OFF(ii);
+      }
+    }
+  }
+}
+
+int ActivateWell() {
+  if (Serial.available()){
+    int well = Serial.read();
+    well = well -1;
+    if (well >= 0 && well <= 5) {
+      Well_Active_State[well] = true;
+      Well_LED_ON(well);
+      Serial.print("Activated Well #");
+      Serial.println(well + 1);
+      return well;
+    } else {
+      Serial.println("Input not allowed");
+    }
+    }
+  }
+  return -1;
+}
+/*
+    ISR routines for IR well detection
+*/
+void IR_Detect1() {
+  IR_Detect_ReportChange(0);
+}
+void IR_Detect2() {
+  IR_Detect_ReportChange(1);
+}
+void IR_Detect3() {
+  IR_Detect_ReportChange(2);
+}
+void IR_Detect4() {
+  IR_Detect_ReportChange(3);
+}
+void IR_Detect5() {
+  IR_Detect_ReportChange(4);
+}
+void IR_Detect6() {
+  IR_Detect_ReportChange(5);
+}
+
+// Detection state
+void IR_Detect_ReportChange(int well) {
+  if (digitalRead(Well_IR_Pins[well]) == LOW) {
+    Well_IR_State[well] = true;
+    Well_IR_TimeRef[well] = millis();
+    Well_IR_Timer[well] = 0;
+  } else {
+    ResetDetectTimer(well);
+  }
+}
+
+bool WellDetectThrCheck(int well) {
+  if (Well_IR_State[well] == true) {
+    Well_IR_Timer[well] = millis() - Well_IR_TimeRef[well];
+    if (Well_IR_Timer[well] >= DETECT_TIME_THR) {
+      Serial.print("Detection on Well # ");
+      Serial.println(well + 1);
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+// After detection threshold. Deliver Reward (activate pump) and reset IR timer/state
+void Deliver_Reward(int well) {
+  // IR timers resets
+  ResetDetectTimer(well);
+
+  // set pump to on & set pump timer
+  digitalWrite(Pumps_Pins[well], Pump_ON);
+  Pump_State[well] = true;
+  PumpTimeRef[well] = millis();
+  PumpTimer[well] = 0;
+
+  Serial.println("Delivering Reward");
+}
+
+// turn off pump and reset pump timers
+void TurnOFFPump(int well) {
+  digitalWrite(Pumps_Pins[well], Pump_OFF);
+  Pump_State[well] = false;
+  PumpTimeRef[well] = 15000UL;
+  PumpTimer[well] = 0;
+  Serial.print("Reward Delivered to Well # ");
+  Serial.println(well + 1);
+}
+
+void ResetDetectTimer(int well) {
+  Well_IR_State[well] = false;
+  Well_IR_TimeRef[well] = 15000UL;
+  Well_IR_Timer[well] = 0;
+}
+
+void debug_print() {
+  Serial.println("State variables");
+  for (int ii = 0; ii < 1; ii++) {
+    Serial.print("States for well # ");
+    Serial.println(ii + 1);
+    Serial.print("Well IR State = ");
+    Serial.println(Well_IR_State[ii]);
+    Serial.print("Well Pump State = ");
+    Serial.println(Pump_State[ii]);
+    Serial.print("Well LED State = ");
+    Serial.println(Well_LED_State[ii]);
+  }
+  delay(2000);
+}
+
+void  Well_LED_ON(int well) {
+  // set LED timers and set LED state to ON
+  digitalWrite(Well_LED_Pins[well], HIGH);
+  Well_LED_State[well] = true;
+}
+
+void  Well_LED_OFF(int well) {
+  digitalWrite(Well_LED_Pins[well], LOW);
+  Well_LED_State[well] = false;
+}
