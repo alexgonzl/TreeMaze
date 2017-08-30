@@ -62,6 +62,11 @@ unsigned long Well_IR_Timer[nWells];    // timer for how long IR has been on.
 unsigned long PumpTimeRef[nWells];      // time ref for pump on
 unsigned long PumpTimer[nWells];        // timer for how long pump has been on
 
+char RR[] = "RR";
+char DD[] = "DD";
+char AW[] = "AW";
+char DW[] = "DW";
+
 // Setup
 void setup() {
   //  state variables & time references initiation
@@ -128,10 +133,8 @@ void loop() {
           TurnOFFPump(well);
           Serial.print("<Reward Delivered to Well # ");
           Serial.println(well + 1);
-          Serial.print(">");
-          char eventCode[3];
-          sprintf(eventCode, "RR%d",well+1);
-          sendEventCode(eventCode);
+          Serial.print(">\n");
+          sendEventCode(RR,well+1);
           DeActivateWell(well);
         }
       }
@@ -162,11 +165,11 @@ void IR_Detect6() {
 }
 
 // send event code 
-void sendEventCode(char* code){
+void sendEventCode(char* code, int num){
    char str[10];
-   sprintf(str,"<EC_%s", code);
+   sprintf(str,"<EC_%s%d", code, num);
    Serial.println(str);
-   Serial.println(">");
+   Serial.println(">\n");
 }
 
 // Detection state
@@ -193,9 +196,7 @@ void WellDetectThrCheck(int well) {
         Serial.print("<Detection on Well # ");
         Serial.println(well + 1);
         Serial.print(">\n");
-        char eventCode[3];
-        sprintf(eventCode, "DD%d",well+1);
-        sendEventCode(eventCode);
+        sendEventCode(DD,well+1);
       }
     }
   }
@@ -318,9 +319,7 @@ void ActivateWell(int well) {
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
   Well_LED_ON(well);
-  char eventCode[3];
-  sprintf(eventCode, "AW%d",well+1);
-  sendEventCode(eventCode);
+  sendEventCode(AW,well+1);
 }
 
 void DeActivateWell(int well) {
@@ -328,9 +327,7 @@ void DeActivateWell(int well) {
   Well_Active_TimeRef[well] = 15000UL;
   Well_Active_Timer[well] = 0;
   Well_LED_OFF(well);
-  char eventCode[3];
-  sprintf(eventCode, "DW%d",well+1);
-  sendEventCode(eventCode);
+  sendEventCode(DW,well+1);
 }
 
 void  Well_LED_ON(int well) {
