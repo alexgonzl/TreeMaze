@@ -6,6 +6,7 @@
   Updated: 8/8/17
 */
 
+const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
 const long DETECT_TIME_THR  = 500; // in ms
 const long Pump_ON_DUR      = 40; // in ms (100ms=0.25ml; 40ms=0.1ml)
 const bool Pump_ON = LOW; // LOW activates the pump
@@ -61,6 +62,11 @@ unsigned long Well_IR_Timer[nWells];    // timer for how long IR has been on.
 unsigned long PumpTimeRef[nWells];      // time ref for pump on
 unsigned long PumpTimer[nWells];        // timer for how long pump has been on
 
+char RR[] = "RR";
+char DD[] = "DD";
+char AW[] = "AW";
+char DW[] = "DW";
+
 // Setup
 void setup() {
   //  state variables & time references initiation
@@ -102,7 +108,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[5]), IR_Detect6, CHANGE);
 
   delay(500);
-  Serial.begin(115200);
+  Serial.begin(BAUD_RATE);
   Serial.println("<");
   Serial.println("<Initiation complete. Waiting for a detection.");
   Serial.print(">");
@@ -127,7 +133,8 @@ void loop() {
           TurnOFFPump(well);
           Serial.print("<Reward Delivered to Well # ");
           Serial.println(well + 1);
-          Serial.print(">");
+          Serial.print(">\n");
+          sendEventCode(RR,well+1);
           DeActivateWell(well);
         }
       }
@@ -157,6 +164,14 @@ void IR_Detect6() {
   IR_Detect_ReportChange(5);
 }
 
+// send event code 
+void sendEventCode(char* code, int num){
+   char str[10];
+   sprintf(str,"<EC_%s%d", code, num);
+   Serial.println(str);
+   Serial.println(">\n");
+}
+
 // Detection state
 void IR_Detect_ReportChange(int well) {
   if (digitalRead(Well_IR_Pins[well]) == LOW) {
@@ -180,7 +195,8 @@ void WellDetectThrCheck(int well) {
         ResetDetectTimer(well);
         Serial.print("<Detection on Well # ");
         Serial.println(well + 1);
-        Serial.print(">");
+        Serial.print(">\n");
+        sendEventCode(DD,well+1);
       }
     }
   }
@@ -213,10 +229,11 @@ void ProcessInput() {
         break;
       default:
         Serial.println("<IncorrectSuffix");
-        Serial.print(">");
+        Serial.print(">\n");
     }
   }
 }
+
 
 int SelectWellToActive() {
   unsigned long intimer = millis();
@@ -230,19 +247,19 @@ int SelectWellToActive() {
         ActivateWell(well);
         Serial.print("<Activated Well #");
         Serial.println(well + 1);
-        Serial.print(">");
+        Serial.print(">\n");
         return well;
         break;
-      } else {
+      } else {        
         Serial.print("<Input not allowed.");
         Serial.println(well);
-        Serial.print(">");
+        Serial.print(">\n");
         InputWellSelectFlag = false;
       }
     }
   }
   Serial.println("<\nTimed out to select well");
-  Serial.print(">");
+  Serial.print(">\n");
   return -1;
 }
 
@@ -258,19 +275,19 @@ int SelectWellToDeActive() {
         DeActivateWell(well);
         Serial.print("<Deactivated Well #");
         Serial.println(well + 1);
-        Serial.print(">");
+        Serial.print(">\n");
         return well;
         break;
       } else {
         Serial.print("<Input not allowed.");
         Serial.println(well);
-        Serial.print(">");
+        Serial.print(">\n");
         InputWellSelectFlag = false;
       }
     }
   }
   Serial.println("<\nTimed out to select well");
-  Serial.print(">");
+  Serial.print(">\n");
   return -1;
 }
 
@@ -278,7 +295,7 @@ int SelectWellToDeActive() {
 void Deliver_Reward(int well) {
   TurnOnPump(well);
   Serial.println("<Delivering Reward");
-  Serial.print(">");
+  Serial.print(">\n");
 }
 
 void TurnOnPump(int well) {
@@ -302,6 +319,7 @@ void ActivateWell(int well) {
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
   Well_LED_ON(well);
+  sendEventCode(AW,well+1);
 }
 
 void DeActivateWell(int well) {
@@ -309,6 +327,7 @@ void DeActivateWell(int well) {
   Well_Active_TimeRef[well] = 15000UL;
   Well_Active_Timer[well] = 0;
   Well_LED_OFF(well);
+  sendEventCode(DW,well+1);
 }
 
 void  Well_LED_ON(int well) {
@@ -331,7 +350,7 @@ void print_states() {
     Serial.println(Well_Active_State[ii]);
   }
   Serial.println("<\n");
-  Serial.print(">");
+  Serial.print(">\n");
 }
 
 void reset_states(){
