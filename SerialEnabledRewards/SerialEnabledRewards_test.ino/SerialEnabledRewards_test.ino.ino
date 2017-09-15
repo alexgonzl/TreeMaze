@@ -52,8 +52,8 @@ const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
 const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 
 // Default values for pump durations
-const long Pump_ON_Default[6]   = {20, 20, 20, 20, 20, 20};
-long Pump_ON_DUR[6]    = {20, 20, 20, 20, 20, 20};
+const long Pump_ON_Default[6]   = {20, 20, 30, 30, 30, 30};
+long Pump_ON_DUR[6]    = {20, 20, 30, 30, 30, 30};
 // in ms (100ms=0.25ml; 40ms=0.1ml)
 /* **********************************
    End of Declaration of Arduino Pins
@@ -310,7 +310,6 @@ void SetPumpDur(int well) {
             Serial.println(Pump_ON_Default[well]);
             Serial.println("");
             Serial.println(">");
-            return;
             }
           else {
             finishedReading = true;

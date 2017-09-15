@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-## last update: 9/7/17
 import os, sys
 import argparse, serial, threading
 import datetime,time
@@ -62,13 +61,7 @@ if args.baud:
     baud = args.baud
 else:
     baud = 115200
-
-try:
-    arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
-except:
-    arduino = serial.Serial('/dev/ttyUSB1',baud,timeout=0.1)
-
-    
+arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
 arduino.reset_input_buffer()
 arduino.reset_output_buffer()
 
@@ -101,16 +94,17 @@ def readArduino(f, code, time_ref, arduinoEv, interruptEv):
                                 print (x[1:])
                         elif (x[0]=='>'):
                             arduinoEv.set()
+                        else:
+                            print (x)
                     else:
                         if data[0]=='>':
                             arduinoEv.set()
                         else:
-                            print (data[1:])        
+                            print (data)        
                 except:
                     pass
         else:
             break
-
 
 ArdWellInstSet = ['w','d','p']                
 ArdGlobalInstSet = ['a','s','r']
@@ -159,7 +153,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                             well = int(num)
                             if (well>=1 & well<=6):
                                 arduino.write(bytes([well+48]))
-                                dur = input("Enter Pump duration on (in ms), or 'x' to reset: ")
+                                dur = input("Enter Pump duration on (in ms), or 'x' to reset:")
                                 print(dur)
                                 if len(dur)>4:
                                     print("input needs to be less than 10s")
@@ -175,6 +169,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                     elif (dur=='x'): # reset to default
                                          arduino.write("<".encode())
                                          arduino.write("x".encode())
+                                         arduino.write(">".encode())
                             else:
                                 print ("Invalid Well Number")
                         else:
@@ -190,7 +185,6 @@ def getCmdLineInput(arduinoEv,interruptEv):
             arduinoEv.clear()
         else:
             break
-
 
 def getWell2Arduino():   
     well = input('Enter Well Number:')
