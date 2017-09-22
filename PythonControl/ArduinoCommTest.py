@@ -106,9 +106,11 @@ def readArduino(f, code, time_ref, arduinoEv, interruptEv):
         else:
             break
 
-ArdWellInstSet = ['w','d','p']                
-ArdGlobalInstSet = ['a','s','r']
-ArdPumpInst = 'c'
+ArdWellInstSet = ['w','d','p'] # instructions for individual well control
+ArdGlobalInstSet = ['a','s','r'] # instructions for global changes
+ArdPumpInst = 'c' # instruction to change pump duration.
+ArdCueInst = ['z','y'] # instructions for cue control
+
 def getCmdLineInput(arduinoEv,interruptEv):
     time.sleep(1)
     while True:
@@ -122,6 +124,8 @@ def getCmdLineInput(arduinoEv,interruptEv):
                 print ("Enter 'd' to deactivate well")
                 print ("Enter 'r' to reset all wells")
                 print ("Enter 's' to check status")
+                print ("Enter 'z' to turn on a cue")
+                print ("Enter 'y' to turn off the cue")
                 print ("Enter 'q' to exit")
                 CL_in = input()            
                 if (isinstance(CL_in,str)):
@@ -145,6 +149,19 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                 print ("Invalid Well Number")
                         else:
                             print ("Invalid Input")
+                    # cue control
+                    elif (CL_in=='z' or CL_in =='y'):
+                        arduino.write(CL_in.encode())
+                        if (CL_in =='z'):
+                            num = input("Enter Cue Number [5-6]:")
+                            if num.isnumeric():
+                                cue = int(num)
+                                if (cue>=1 and cue<=6):
+                                    arduino.write(bytes([cue+48]))
+                                else:
+                                    print ("Invalid Cue Number")
+                            else:
+                                print ("Invalid Input")
                     # change pump duration. 
                     elif (CL_in == ArdPumpInst):
                         arduino.write(CL_in.encode())
