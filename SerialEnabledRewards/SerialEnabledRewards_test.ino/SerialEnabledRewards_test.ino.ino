@@ -91,6 +91,9 @@ int ActiveCUE_ID = -1;
 unsigned long CUE_Timer;      // time ref for pump on
 unsigned long CUE_TimeRef;
 
+// Serial State Variable:
+bool SerialState = false;
+
 // Well State Variables:
 bool Well_IR_State[nWells]; // state variable for the wells IR interrupts
 bool Well_Detect_State[nWells]; // state variable for wells IRs that passed threshold.
@@ -168,47 +171,54 @@ void setup() {
 
 //Main
 void loop() {
+  if (Serial) {
+    if (not SerialState) {
+      SerialState = true;
+    }
+    // Check serial input.
+    ProcessInput();
+    // Process the wells.
+    for (int well = 0; well < nWells; well++) {
+      WellDetectThrCheck(well);
+      // if well is active, check to deliver reward
+      if  (Well_Active_State[well] == true) {
+        if (Pump_State[well] == false && Well_Detect_State[well] == true) {
+          Deliver_Reward(well);
+          DeActivateWell(well);
+        }
+      }
+      // turn off pump after Pump_ON_DUR duration
+      if (Pump_State[well] == true) {
+        PumpTimer[well] = millis() - PumpTimeRef[well];
+        if (PumpTimer[well] >= Pump_ON_DUR[well]) {
+          TurnOFFPump(well);
+          Serial.print("<Reward Delivered to Well # ");
+          Serial.println(well + 1);
+          Serial.print(">\n");
+          sendEventCode(RR, well + 1);
+        }
+      }
+    }
 
-  // Check serial input.
-  ProcessInput();
-  // Process the wells.
-  for (int well = 0; well < nWells; well++) {
-    WellDetectThrCheck(well);
-    // if well is active, check to deliver reward
-    if  (Well_Active_State[well] == true) {
-      if (Pump_State[well] == false && Well_Detect_State[well] == true) {
-        Deliver_Reward(well);
-        DeActivateWell(well);
+    // Process the cue if not constant.
+    if (ActiveCUE_ID >= 0 & ActiveCUE_ID <= 3) {
+      CUE_Timer = millis() - CUE_TimeRef;
+      if (CUE_Timer > ActiveCUE_HalfCycle) {
+        if (ActiveCUE_UP) {
+          ActiveCUE_UP = false;
+          ChangeCueColor(NP_off);
+        }
+        else {
+          ActiveCUE_UP = true;
+          ChangeCueColor(ActiveCueColor);
+        }
       }
     }
-    // turn off pump after Pump_ON_DUR duration
-    if (Pump_State[well] == true) {
-      PumpTimer[well] = millis() - PumpTimeRef[well];
-      if (PumpTimer[well] >= Pump_ON_DUR[well]) {
-        TurnOFFPump(well);
-        Serial.print("<Reward Delivered to Well # ");
-        Serial.println(well + 1);
-        Serial.print(">\n");
-        sendEventCode(RR, well + 1);
-      }
-    }
+  } else if (SerialState) {
+    SerialState = false;
+    reset_states();
+    TurnCueOff();
   }
-  
-  // Process the cue if not constant.
-  if (ActiveCUE_ID >=0 & ActiveCUE_ID<=3){
-    CUE_Timer = millis()-CUE_TimeRef;   
-    if (CUE_Timer > ActiveCUE_HalfCycle){
-      if (ActiveCUE_UP){
-        ActiveCUE_UP = false;
-        ChangeCueColor(NP_off);
-      }
-      else{
-        ActiveCUE_UP = true;
-        ChangeCueColor(ActiveCueColor);
-      }
-    }
-  }
-  
 }
 
 /*************************************
@@ -272,7 +282,7 @@ void ResetDetectTimer(int well) {
   Well_IR_Timer[well] = 0;
 }
 
-/****************************************  
+/****************************************
       Serial IO processing.
 *****************************************/
 // Process serial command input.
@@ -348,14 +358,14 @@ void sendEventCode(char* code, int num) {
   Serial.println(">\n");
 }
 
-/****************************************  
+/****************************************
               Cue Control
 *****************************************/
 int SelectCueOn() {
   int cue = SerialReadNum();
   if (cue >= 0 && cue <= nCues) {
     ActiveCUE_ID = cue;
-    sendEventCode(CA, cue+1);
+    sendEventCode(CA, cue + 1);
     Serial.print("<Ard. Activated Cue #");
     Serial.println(cue + 1);
     Serial.print(">\n");
@@ -369,64 +379,70 @@ int SelectCueOn() {
   return ActiveCUE_ID;
 }
 
-void TurnCueOff(){
+void TurnCueOff() {
+  sendEventCode(CD, ActiveCUE_ID + 1);
   SetCueParams(-1);
-  sendEventCode(CD, ActiveCUE_ID+1);
   CUE_TimeRef = 15000L;
   CUE_Timer   = 0;
 }
 
-void SetCueParams(int CueNum){
-  switch (CueNum){
-  // color 1
-  case 0:
-    ActiveCueColor = CUE_Colors[0];
-    ActiveCUE_Freq = CUE_Freqs[0];
-    ActiveCUE_HalfCycle = CUE_HalfCycles[0];
-    break;
-  case 1:
-    ActiveCueColor = CUE_Colors[0];
-    ActiveCUE_Freq = CUE_Freqs[1];
-    ActiveCUE_HalfCycle = CUE_HalfCycles[1];
-    break;
- // color 2
-  case 2:
-    ActiveCueColor = CUE_Colors[1];
-    ActiveCUE_Freq = CUE_Freqs[0];
-    ActiveCUE_HalfCycle = CUE_HalfCycles[0];
-    break;
-  case 3:
-    ActiveCueColor = CUE_Colors[1];
-    ActiveCUE_Freq = CUE_Freqs[1];
-    ActiveCUE_HalfCycle = CUE_HalfCycles[1];
-    break;
-  // constant colors
-  case 4:
-    ActiveCueColor = CUE_Colors[0];
-    ActiveCUE_Freq = CUE_Freqs[2];
-    ActiveCUE_HalfCycle = CUE_HalfCycles[2];
-    break;
-  case 5:
-    ActiveCueColor = CUE_Colors[1];
-    ActiveCUE_Freq = CUE_Freqs[2];
-    ActiveCUE_HalfCycle = CUE_HalfCycles[2];
-    break;
-  default:
-    ActiveCueColor = NP_off;
-    ActiveCUE_Freq = 0;
-    ActiveCUE_HalfCycle = 0;
-    break;
+void SetCueParams(int CueNum) {
+  switch (CueNum) {
+    // color 1
+    case 0:
+      ActiveCueColor = CUE_Colors[0];
+      ActiveCUE_Freq = CUE_Freqs[0];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[0];
+      break;
+    case 1:
+      ActiveCueColor = CUE_Colors[0];
+      ActiveCUE_Freq = CUE_Freqs[1];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[1];
+      break;
+    // color 2
+    case 2:
+      ActiveCueColor = CUE_Colors[1];
+      ActiveCUE_Freq = CUE_Freqs[0];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[0];
+      break;
+    case 3:
+      ActiveCueColor = CUE_Colors[1];
+      ActiveCUE_Freq = CUE_Freqs[1];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[1];
+      break;
+    // constant colors
+    case 4:
+      ActiveCueColor = CUE_Colors[0];
+      ActiveCUE_Freq = CUE_Freqs[2];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[2];
+      break;
+    case 5:
+      ActiveCueColor = CUE_Colors[1];
+      ActiveCUE_Freq = CUE_Freqs[2];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[2];
+      break;
+    default:
+      ActiveCUE_ID = -1;
+      ActiveCueColor = NP_off;
+      ActiveCUE_Freq = 0;
+      ActiveCUE_HalfCycle = 0;
+      break;
   }
   ChangeCueColor(ActiveCueColor);
 }
-void ChangeCueColor(uint32_t col){
-  NeoPix.setPixelColor(0,col);
+void ChangeCueColor(uint32_t col) {
+  if (col == NP_off) {
+    NeoPix.clear();
+  } else {
+    NeoPix.setPixelColor(0, col);
+  }
   NeoPix.show();
   CUE_TimeRef = millis();
   CUE_Timer   = 0;
+
 }
 
-/****************************************  
+/****************************************
       Pump/Reward Control
 *****************************************/
 int SelectPumpToTurnOn() {
@@ -538,7 +554,7 @@ void SetPumpDur(int well) {
     Serial.print(">\n");
   }
 }
-/****************************************  
+/****************************************
    Activate/Deactivate wells.
 *****************************************/
 int SelectWellToActive() {
@@ -603,8 +619,8 @@ void reset_states() {
   }
 }
 
-/****************************************  
-          Well LED functions 
+/****************************************
+          Well LED functions
 *****************************************/
 void  Well_LED_ON(int well) {
   // set LED timers and set LED state to ON
@@ -617,7 +633,7 @@ void  Well_LED_OFF(int well) {
   Well_LED_State[well] = false;
 }
 
-/****************************************  
+/****************************************
      Print Current States
 *****************************************/
 void print_states() {
@@ -632,9 +648,9 @@ void print_states() {
   }
   Serial.println("<\n");
   Serial.println("<\n");
-  if (ActiveCUE_ID >=0){
+  if (ActiveCUE_ID >= 0) {
     Serial.print("Active Cue = ");
-    Serial.println(ActiveCUE_ID+1);
+    Serial.println(ActiveCUE_ID + 1);
   }
   Serial.print(">\n");
 }

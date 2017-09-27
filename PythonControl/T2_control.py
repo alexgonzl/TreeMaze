@@ -1,5 +1,11 @@
 #!/usr/bin/python3
 
+###
+# Script for the control of phase 2 of training. This builds on the base ArduinoComm.py
+# scripts, and automates trials that show the cue and with appropiate sequence of goal events.
+# option includes to change the if there's a light at the reward well when cue present. 
+###
+
 import os, sys
 import argparse, serial, threading
 import datetime,time
@@ -110,6 +116,9 @@ ArdWellInstSet = ['w','d','p'] # instructions for individual well control
 ArdGlobalInstSet = ['a','s','r'] # instructions for global changes
 ArdPumpInst = 'c' # instruction to change pump duration.
 ArdCueInst = ['z','y'] # instructions for cue control
+
+TrialTypes = ["L","R"]
+def TrialScheduler(arduinoEv,interruptEv):
 
 def getCmdLineInput(arduinoEv,interruptEv):
     time.sleep(1)
