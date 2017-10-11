@@ -107,7 +107,7 @@ def readArduino(f, code, time_ref, arduinoEv, interruptEv):
             break
 
 ArdWellInstSet = ['w','d','p'] # instructions for individual well control
-ArdGlobalInstSet = ['a','s','r'] # instructions for global changes
+ArdGlobalInstSet = ['a','s','r','l'] # instructions that do not require a specific well
 ArdPumpInst = 'c' # instruction to change pump duration.
 ArdCueInst = ['z','y'] # instructions for cue control
 
@@ -119,6 +119,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
             try:
                 print ("Enter 'w' to activate a well")
                 print ("Enter 'a' to activate all wells")
+                print ("Enter 'l' to turn LED ON for activate goal wells")
                 print ("Enter 'p' to turn-on a pump")
                 print ("Enter 'c' to change reward amount per well")
                 print ("Enter 'd' to deactivate well")

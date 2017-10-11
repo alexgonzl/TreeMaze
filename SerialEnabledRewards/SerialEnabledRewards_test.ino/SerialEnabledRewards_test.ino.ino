@@ -27,7 +27,7 @@
 /* Program constants.
 */
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
-const long DETECT_TIME_THR  = 500; // in ms
+const long DETECT_TIME_THR  = 50; // in ms
 const bool Pump_ON = LOW; // LOW activates the pump
 const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
 const int nWells = 6; // number of reward wells
@@ -61,8 +61,10 @@ const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
 const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 
 // Default values for pump durations
-const long Pump_ON_Default[6]   = {15, 15, 20, 20, 15, 15};
-long Pump_ON_DUR[6]    = {15, 15, 20, 20, 15, 15};
+//const long Pump_ON_Default[6]   = {12, 12, 15, 15, 15, 15};
+//long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
+const long Pump_ON_Default[6]   = {15, 15, 18, 18, 18, 18};
+long Pump_ON_DUR[6]    = {15, 15, 18, 18, 18, 18};
 // in ms (100ms=0.25ml; 40ms=0.1ml)
 /* **********************************
    End of Declaration of Arduino Pins
@@ -296,6 +298,11 @@ void ProcessInput() {
         break;
       case 'w':
         SelectWellToActive();
+        break;
+      case 'l':
+        // turns LED on for active goal well(s)
+        // led is on for home/decision wells
+        Well_LED_ON();
         break;
       case 'd':
         SelectWellToDeActive();
@@ -591,10 +598,14 @@ int SelectWellToDeActive() {
 
 void ActivateWell(int well) {
   Well_Active_State[well] = true;
+
+  if (well <= 1) {
+    Well_LED_ON();
+  };
+
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
-  Well_LED_ON(well);
-  Deliver_Reward(well);
+  //Deliver_Reward(well);
   sendEventCode(AW, well + 1);
 }
 
@@ -609,7 +620,7 @@ void DeActivateWell(int well) {
 void ActivateAllWells() {
   for (int well = 0; well < nWells; well++) {
     ActivateWell(well);
-    Deliver_Reward(well);
+    //Deliver_Reward(well);
   }
 }
 void reset_states() {
@@ -622,10 +633,14 @@ void reset_states() {
 /****************************************
           Well LED functions
 *****************************************/
-void  Well_LED_ON(int well) {
-  // set LED timers and set LED state to ON
-  digitalWrite(Well_LED_Pins[well], HIGH);
-  Well_LED_State[well] = true;
+void  Well_LED_ON() {
+  // turn on LED on call for active wells only
+  for (int well = 0; well < nWells; well++) {
+    if (Well_Active_State[well]==true & Well_LED_State[well] == false) {
+      digitalWrite(Well_LED_Pins[well], HIGH);
+      Well_LED_State[well] = true;
+    }
+  }
 }
 
 void  Well_LED_OFF(int well) {
@@ -654,5 +669,4 @@ void print_states() {
   }
   Serial.print(">\n");
 }
-
 
