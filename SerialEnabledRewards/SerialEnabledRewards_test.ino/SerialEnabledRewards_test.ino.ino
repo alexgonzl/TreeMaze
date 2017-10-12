@@ -28,6 +28,7 @@
 */
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
 const long DETECT_TIME_THR  = 50; // in ms
+const long DETECT_REFRAC_THR = 15000; // twenty seconds before registering a second detection
 const bool Pump_ON = LOW; // LOW activates the pump
 const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
 const int nWells = 6; // number of reward wells
@@ -62,9 +63,9 @@ const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 
 // Default values for pump durations
 //const long Pump_ON_Default[6]   = {12, 12, 15, 15, 15, 15};
-//long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
+long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
 const long Pump_ON_Default[6]   = {15, 15, 18, 18, 18, 18};
-long Pump_ON_DUR[6]    = {15, 15, 18, 18, 18, 18};
+//long Pump_ON_DUR[6]    = {15, 15, 18, 18, 18, 18};
 // in ms (100ms=0.25ml; 40ms=0.1ml)
 /* **********************************
    End of Declaration of Arduino Pins
@@ -108,6 +109,8 @@ unsigned long Well_Active_TimeRef[nWells]; // time reference for LED on
 unsigned long Well_Active_Timer[nWells];   // timer indicating how long LED has been on
 unsigned long Well_IR_TimeRef[nWells];  // time reference: for IR detection
 unsigned long Well_IR_Timer[nWells];    // timer for how long IR has been on.
+unsigned long Well_IR_RefracTimeRef[nWells]; // timer for second detection
+
 unsigned long PumpTimeRef[nWells];      // time ref for pump on
 unsigned long PumpTimer[nWells];        // timer for how long pump has been on
 
@@ -132,6 +135,7 @@ void setup() {
     Well_Active_TimeRef[ii] = 15000UL;
     Well_IR_TimeRef[ii] = 15000UL;
     PumpTimeRef[ii] = 15000UL;
+    Well_IR_RefracTimeRef[ii] = 0;
 
     Well_Active_Timer[ii] = 0;
     PumpTimer[ii] = 0;
@@ -169,7 +173,7 @@ void setup() {
   Serial.println("<");
   Serial.println("<Initiation complete. Waiting for a detection.");
   Serial.print(">");
-}
+} // end setup
 
 //Main
 void loop() {
@@ -263,16 +267,20 @@ void IR_Detect_ReportChange(int well) {
 
 // Detection Threshold
 void WellDetectThrCheck(int well) {
-  if (Well_Detect_State[well] == false) {
-    if (Well_IR_State[well] == true) {
-      Well_IR_Timer[well] = millis() - Well_IR_TimeRef[well];
-      if (Well_IR_Timer[well] >= DETECT_TIME_THR) {
-        Well_Detect_State[well] = true;
-        ResetDetectTimer(well);
-        Serial.print("<Detection on Well # ");
-        Serial.println(well + 1);
-        Serial.print(">\n");
-        sendEventCode(DD, well + 1);
+  if ((millis() - Well_IR_RefracTimeRef[well])>DETECT_REFRAC_THR) {       
+    if (Well_Detect_State[well] == false) {
+      if (Well_IR_State[well] == true) {
+        
+        Well_IR_Timer[well] = millis() - Well_IR_TimeRef[well];
+        if (Well_IR_Timer[well] >= DETECT_TIME_THR) {
+          Well_Detect_State[well] = true;
+          ResetDetectTimer(well);
+          Well_IR_RefracTimeRef[well] = millis();
+          Serial.print("<Detection on Well # ");
+          Serial.println(well + 1);
+          Serial.print(">\n");
+          sendEventCode(DD, well + 1);
+        }
       }
     }
   }
@@ -636,7 +644,7 @@ void reset_states() {
 void  Well_LED_ON() {
   // turn on LED on call for active wells only
   for (int well = 0; well < nWells; well++) {
-    if (Well_Active_State[well]==true & Well_LED_State[well] == false) {
+    if (Well_Active_State[well] == true & Well_LED_State[well] == false) {
       digitalWrite(Well_LED_Pins[well], HIGH);
       Well_LED_State[well] = true;
     }
