@@ -19,6 +19,8 @@
 
 
 // CUE library
+#include <Adafruit_GFX.h>
+#include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
 #include <avr/power.h>
@@ -38,7 +40,6 @@ const int nWells = 6; // number of reward wells
 */
 // PINs for CUE signals output and control.
 const int CUEs1_PIN = 46;
-const int CUEs2_PIN = 47;
 
 // TTL Well LED Pins
 const int TTL_LED_Pins[6] = {4, 5, 6, 7, 8, 9};
@@ -62,18 +63,23 @@ const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
 const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 
 // Default values for pump durations
-//const long Pump_ON_Default[6]   = {12, 12, 15, 15, 15, 15};
+const long Pump_ON_Default[6]   = {12, 12, 15, 15, 15, 15};
 long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
-const long Pump_ON_Default[6]   = {15, 15, 18, 18, 18, 18};
+//const long Pump_ON_Default[6]   = {15, 15, 18, 18, 18, 18};
 //long Pump_ON_DUR[6]    = {15, 15, 18, 18, 18, 18};
 // in ms (100ms=0.25ml; 40ms=0.1ml)
 /* **********************************
    End of Declaration of Arduino Pins
 */
 // Setup of Neopixel:
-Adafruit_NeoPixel NeoPix = Adafruit_NeoPixel(1, CUEs2_PIN, NEO_GRB + NEO_KHZ800);
-const uint32_t  NP_blueviolet = NeoPix.Color(150, 0, 255);
-const uint32_t  NP_green = NeoPix.Color(0, 100, 0);
+//Adafruit_NeoPixel NeoPix = Adafruit_NeoPixel(, CUEs1_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(8, 8, CUEs1_PIN,
+  NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
+  NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
+  NEO_GRB            + NEO_KHZ800);
+  
+const uint32_t  NP_blueviolet = NeoPix.Color(120, 0, 110);
+const uint32_t  NP_green = NeoPix.Color(0, 120, 0);
 const uint32_t  NP_off = NeoPix.Color(0, 0, 0);
 
 // Cue parameters
@@ -165,9 +171,10 @@ void setup() {
 
   // Neopixel setup:
   NeoPix.begin();
-  NeoPix.setBrightness(90);
+  NeoPix.setBrightness(60);
+  NeoPix.fillScreen(0);
   NeoPix.show();
-
+  
   delay(500);
   Serial.begin(BAUD_RATE);
   Serial.println("<");
@@ -447,9 +454,9 @@ void SetCueParams(int CueNum) {
 }
 void ChangeCueColor(uint32_t col) {
   if (col == NP_off) {
-    NeoPix.clear();
+    NeoPix.fillScreen(0);
   } else {
-    NeoPix.setPixelColor(0, col);
+    NeoPix.fillScreen(col);
   }
   NeoPix.show();
   CUE_TimeRef = millis();
