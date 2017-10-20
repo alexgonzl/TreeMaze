@@ -12,9 +12,10 @@
   c -> change pump duration
   z -> select cue {1,2,3,4}
   y -> turn off cue.
+  l -> turn on led on that well
 
   Alex Gonzalez
-  Updated: 9/21/17
+  Updated: 10/18/17
 */
 
 
@@ -48,8 +49,7 @@ const int TTL_LED_Pins[6] = {4, 5, 6, 7, 8, 9};
 const int TTL_IR_Pins[6] = {10, 11, 12, 26, 27, 28};
 
 // TTL CUE Code Pins
-const int TTL_CUE_Pins[4] = {29, 30, 31, 32};
-
+ 
 // TTL Reward Delivered Pin (one pump activated)
 const int TTL_RD_Pin = 33;
 
@@ -65,9 +65,7 @@ const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 // Default values for pump durations
 const long Pump_ON_Default[6]   = {12, 12, 15, 15, 15, 15};
 long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
-//const long Pump_ON_Default[6]   = {15, 15, 18, 18, 18, 18};
-//long Pump_ON_DUR[6]    = {15, 15, 18, 18, 18, 18};
-// in ms (100ms=0.25ml; 40ms=0.1ml)
+// in ms (200ms=1ml; 20ms=0.1ml)
 /* **********************************
    End of Declaration of Arduino Pins
 */
@@ -205,9 +203,6 @@ void loop() {
         PumpTimer[well] = millis() - PumpTimeRef[well];
         if (PumpTimer[well] >= Pump_ON_DUR[well]) {
           TurnOFFPump(well);
-          Serial.print("<Reward Delivered to Well # ");
-          Serial.println(well + 1);
-          Serial.print(">\n");
           sendEventCode(RR, well + 1);
         }
       }
@@ -315,8 +310,7 @@ void ProcessInput() {
         SelectWellToActive();
         break;
       case 'l':
-        // turns LED on for active goal well(s)
-        // led is on for home/decision wells
+        // turns LED on for specified well
         Well_LED_ON();
         break;
       case 'd':
@@ -613,15 +607,8 @@ int SelectWellToDeActive() {
 
 void ActivateWell(int well) {
   Well_Active_State[well] = true;
-
-   Well_LED_ON();
-//  if (well <= 1) {
-//    Well_LED_ON();
-//  };
-
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
-  //Deliver_Reward(well);
   sendEventCode(AW, well + 1);
 }
 
@@ -629,20 +616,19 @@ void DeActivateWell(int well) {
   Well_Active_State[well] = false;
   Well_Active_TimeRef[well] = 15000UL;
   Well_Active_Timer[well] = 0;
-  Well_LED_OFF(well);
   sendEventCode(DW, well + 1);
 }
 
 void ActivateAllWells() {
   for (int well = 0; well < nWells; well++) {
     ActivateWell(well);
-    //Deliver_Reward(well);
   }
 }
 void reset_states() {
-  for (int ii = 0; ii < nWells; ii++) {
-    DeActivateWell(ii);
-    TurnOFFPump(ii);
+  for (int well = 0; well < nWells; well++) {
+    DeActivateWell(well);
+    TurnOFFPump(well);
+    Well_LED_OFF(well);
   }
 }
 
@@ -650,12 +636,11 @@ void reset_states() {
           Well LED functions
 *****************************************/
 void  Well_LED_ON() {
-  // turn on LED on call for active wells only
-  for (int well = 0; well < nWells; well++) {
-    if (Well_Active_State[well] == true & Well_LED_State[well] == false) {
-      digitalWrite(Well_LED_Pins[well], HIGH);
-      Well_LED_State[well] = true;
-    }
+  // turn on LED on 
+  int well = SerialReadNum();
+  if (well >= 0 && well <= 5){
+    digitalWrite(Well_LED_Pins[well], HIGH);
+    Well_LED_State[well] = true;
   }
 }
 
@@ -674,6 +659,8 @@ void print_states() {
     Serial.println(ii + 1);
     Serial.print("<Well Active State = ");
     Serial.println(Well_Active_State[ii]);
+    Serial.print("<Well LED State = ");
+    Serial.println(Well_LED_State[ii]);
     Serial.print("<Pump On Dur = ");
     Serial.println(Pump_ON_DUR[ii]);
   }
