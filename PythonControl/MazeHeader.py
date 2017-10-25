@@ -251,14 +251,39 @@ def logEvent(f, code):
     f.write("%s,%f\n" % (code,time.time()-time_ref) )
 
 # function for sending automatic commands to arduino without comand line input.
-def ActivateWell(well):
-    arduino.write('w'.encode())
+def ArdSendDigit(num):
     # arduino reads wells zero based. adding
-    arduino.write(bytes([well+47]))
+    arduino.write(bytes([num+48]))
+def ArdSendChar(ch):
+    arduino.write(ch.encode())
 
-def ActivateCue(cueNum):
-    arduino.write('z'.encode())
-    arduino.write()
+def ArdActivateWell(well):
+    ArdSendChar('w')
+    ArdSendDigit(well)
+
+def ArdDeActivateWell(well):
+    ArdSendChar('d')
+    ArdSendDigit(well)
+
+def ArdActivateCue(cueNum):
+    ArdSendChar('z')
+    ArdSendDigit(cueNum)
+
+def ArdDeActivateCue():
+    ArdSendChar('y')
+
+def ArdReset():
+    ArdSendChar('r')
+
+def ArdActivateAllWells():
+    ArdSendChar('a')
+
+def ArdChangePumpDur(well, dur):
+    ArdSendChar('c')
+    ArdSendDigit(well)
+    dur_str = '<'+str(dur)+'>'
+    for ch in dur_str:
+        ArdSendChar(ch)
 
 def getCmdLineInput(arduinoEv,interruptEv):
     ArdWellInstSet = ['w','d','p'] # instructions for individual well control
@@ -356,8 +381,8 @@ def IR_Detect():
 def getWell2Arduino():
     well = input('Enter Well Number:')
     if well.isnumeric():
-        well = int(well);
-        if (well>=1 & well<=6):
+        well = int(well)-1;
+        if (well>=0 & well<=5):
             arduino.write(bytes([well+48]))
         else:
             print ("Invalid Well Number")
