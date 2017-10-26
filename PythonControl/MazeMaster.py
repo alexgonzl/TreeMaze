@@ -17,9 +17,7 @@ from MazeHeader import *
 f,baud = ParseArguments()
 
 ## Set serial comm with arduino
-arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
-arduino.reset_input_buffer()
-arduino.reset_output_buffer()
+ArdCommInst = ArdComm(baud) 
 
 global time_ref = time.time()
 

@@ -77,7 +77,7 @@ Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(8, 8, CUEs1_PIN,
   NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
   NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
   NEO_GRB            + NEO_KHZ800);
-  
+
 const uint32_t  NP_blueviolet = NeoPix.Color(120, 0, 110);
 const uint32_t  NP_green = NeoPix.Color(0, 120, 0);
 const uint32_t  NP_off = NeoPix.Color(0, 0, 0);
@@ -174,7 +174,7 @@ void setup() {
   NeoPix.setBrightness(60);
   NeoPix.fillScreen(0);
   NeoPix.show();
-  
+
   delay(500);
   Serial.begin(BAUD_RATE);
   Serial.println("<");
@@ -274,10 +274,10 @@ void IR_Detect_ReportChange(int well) {
 
 // Detection Threshold
 void WellDetectThrCheck(int well) {
-  if ((millis() - Well_IR_RefracTimeRef[well])>DETECT_REFRAC_THR) {       
+  if ((millis() - Well_IR_RefracTimeRef[well])>DETECT_REFRAC_THR) {
     if (Well_Detect_State[well] == false) {
       if (Well_IR_State[well] == true) {
-        
+
         Well_IR_Timer[well] = millis() - Well_IR_TimeRef[well];
         if (Well_IR_Timer[well] >= DETECT_TIME_THR) {
           Well_Detect_State[well] = true;
@@ -325,7 +325,7 @@ void ProcessInput() {
       case 'p':
         SelectPumpToTurnOn();
         break;
-      case 'c':
+      case 'z':
         ChangePumpOnDur();
         break;
       case 's':
@@ -338,7 +338,7 @@ void ProcessInput() {
       case 'z':
         SelectCueOn();
         break;
-      case 'y':
+      case 'c':
         TurnCueOff();
         break;
       default:
@@ -355,7 +355,7 @@ int SerialReadNum() {
   while (intimer >= (millis() - 5000)) {
     if (Serial.available()) {
       int num = Serial.read();
-      num = num - 49;
+      num = num - 48;
       if (num >= 0 && num <= 9) {
         return num;
       }
@@ -385,7 +385,7 @@ void sendEventCode(char* code, int num) {
 *****************************************/
 int SelectCueOn() {
   int cue = SerialReadNum();
-  if (cue >= 0 && cue <= nCues) {
+  if (cue >= 1 && cue <= nCues) {
     ActiveCUE_ID = cue;
     sendEventCode(CA, cue + 1);
     Serial.print("<Ard. Activated Cue #");
@@ -614,9 +614,10 @@ int SelectWellToDeActive() {
 void ActivateWell(int well) {
   Well_Active_State[well] = true;
 
-  if (well <= 1) {
-    Well_LED_ON();
-  };
+  Well_LED_ON();
+//  if (well <= 1) {
+//    Well_LED_ON();
+//  };
 
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
@@ -684,4 +685,3 @@ void print_states() {
   }
   Serial.print(">\n");
 }
-

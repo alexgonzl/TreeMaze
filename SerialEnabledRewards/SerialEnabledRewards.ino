@@ -303,7 +303,7 @@ void ProcessInput() {
       case 'p':
         SelectPumpToTurnOn();
         break;
-      case 'c':
+      case 'z':
         ChangePumpOnDur();
         break;
       case 's':
@@ -313,12 +313,15 @@ void ProcessInput() {
         reset_states();
         Serial.print("<All wells inactivated.");
         break;
-      case 'z':
+      case 'c':
         SelectCueOn();
         break;
       case 'y':
         TurnCueOff();
         break;
+      case 'q':
+        reset_states();
+        TurnCueOff();
       default:
         Serial.println("<IncorrectSuffix");
         Serial.print(">\n");

@@ -84,17 +84,17 @@ class TrialSeq(object):
 
     def activate_cue(self):
       # send command to activate relevant cue
-      #self.Act_Cue
-      pass
-    def inactivate_cue(self):
+      ArdComm.ActivateCue(self.Act_Cue)
+
+    def deactivate_cue(self):
       # send command to inactivate cue
       self.Act_Cue = 0
+      ArdComm.DeActivateCue()
 
     def activate_well(self,well):
       if self.Act_Well[well]:
           print('activated well', well+1)
-          ActivateWell(well)
-          #send command to arduino
+          ArdComm.ActivateWell(well)
 
     def detect(self,well):
       #well = event.kwargs.get('well',0)
@@ -251,143 +251,123 @@ def logEvent(f, code):
     f.write("%s,%f\n" % (code,time.time()-time_ref) )
 
 # function for sending automatic commands to arduino without comand line input.
-def ArdSendDigit(num):
-    # arduino reads wells zero based. adding
-    arduino.write(bytes([num+48]))
-def ArdSendChar(ch):
-    arduino.write(ch.encode())
+class ArdComm(object):
+    """Spetialized functions for arduino communication."""
+    def __init__(self,baud):
+        arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
+        arduino.reset_input_buffer()
+        arduino.reset_output_buffer()
 
-def ArdActivateWell(well):
-    ArdSendChar('w')
-    ArdSendDigit(well)
+    def SendDigit(self,num):
+        # arduino reads wells zero based. adding
+        self.arduino.write(bytes([num+48]))
 
-def ArdDeActivateWell(well):
-    ArdSendChar('d')
-    ArdSendDigit(well)
+    def SendChar(self,ch):
+        self.arduino.write(ch.encode())
 
-def ArdActivateCue(cueNum):
-    ArdSendChar('z')
-    ArdSendDigit(cueNum)
+    def ActivateWell(self,well):
+        SendChar('w')
+        SendDigit(well)
 
-def ArdDeActivateCue():
-    ArdSendChar('y')
+    def DeActivateWell(self,well):
+        SendChar('d')
+        SendDigit(well)
 
-def ArdReset():
-    ArdSendChar('r')
+    def ActivateCue(self,cueNum):
+        SendChar('z')
+        SendDigit(cueNum)
 
-def ArdActivateAllWells():
-    ArdSendChar('a')
+    def DeActivateCue(self):
+        SendChar('y')
 
-def ArdChangePumpDur(well, dur):
-    ArdSendChar('c')
-    ArdSendDigit(well)
-    dur_str = '<'+str(dur)+'>'
-    for ch in dur_str:
-        ArdSendChar(ch)
+    def ActivateAllWells(self):
+        SendChar('a')
 
-def getCmdLineInput(arduinoEv,interruptEv):
-    ArdWellInstSet = ['w','d','p'] # instructions for individual well control
-    ArdGlobalInstSet = ['a','s','r'] # instructions for global changes
+    def DeliverReward(self,well):
+        SendChar('p')
+        SendDigit(well)
+
+    def ChangeReward(self,well, dur):
+        SendChar('c')
+        SendDigit(well)
+        dur_str = '<'+str(dur)+'>'
+        for ch in dur_str:
+            SendChar(ch)
+
+    def Reset():
+        SendChar('r')
+
+def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
+    ArdWellInstSet = ['w','d','p','c'] # instructions for individual well control
+    ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
     ArdPumpInst = 'c' # instruction to change pump duration.
     ArdCueInst = ['z','y'] # instructions for cue control
     time.sleep(1)
     while True:
         if not interruptEv.is_set():
+            # wait 1 second for arduino information to come in
             arduinoEv.wait(1)
             try:
-                print ("Enter 'w' to activate a well")
                 print ("Enter 'a' to activate all wells")
-                print ("Enter 'p' to turn-on a pump")
-                print ("Enter 'c' to change reward amount per well")
-                print ("Enter 'd' to deactivate well")
                 print ("Enter 'r' to reset all wells")
                 print ("Enter 's' to check status")
-                print ("Enter 'z' to turn on a cue")
+                print ("Enter 'w#', to activate a well (e.g 'w1')")
+                print ("Enter 'p#', to turn on pump (e.g 'p3') ")
+                print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
+                print ("Enter 'd#' to deactivate a well ('d5')")
+                print ("Enter 'c#' to turn on a cue ('c1')")
                 print ("Enter 'y' to turn off the cue")
                 print ("Enter 'q' to exit")
                 CL_in = input()
+
                 if (isinstance(CL_in,str)):
+                    ins = CL_in[0]
                     # quit instruction
-                    if (CL_in == "q"):
+                    if (ins == 'q'):
                         print ("Exiting arduino communication.")
+                        ArdComm.SendChar(CL_in)
                         interruptEv.set()
                         break
-                    # global instructions
-                    if any( ch in CL_in for ch in ArdGlobalInstSet):
-                        arduino.write(CL_in.encode())
-                    # individual wells
-                    elif any( ch in CL_in for ch in ArdWellInstSet):
-                        arduino.write(CL_in.encode())
-                        getWell2Arduino()
+                    # global instructions: a,s,r,y
+                    elif any( ch in ins for ch in ArdGlobalInstSet):
+                        ArdComm.SendChar(ch)
+                    # actions on individual wells
+                    elif any( ch in ins for ch in ArdWellInstSet):
+                        try:
+                            well = int(CL_in[1])-1 # zero indexing the wells
+                            if well>=0 and well <=5:
+                                if ins=='w':
+                                    ArdComm.ActivateWell(well)
+                                elif ins=='d':
+                                    ArdComm.DeActivateWell(well)
+                                elif ins=='p':
+                                    ArdComm.DeliverReward(well)
+                                elif ins=='z':
+                                    try:
+                                        dur = int(CL_in[3:])
+                                        if dur>0 and dur<=1000:
+                                            ArdComm.ChangeReward(well,dur)
+                                    except
+                                        print('Invalid duration for reward.')
+                        except:
+                            print('Incorrect Instruction Format, Try again')
+                            pass
 
                     # cue control
-                    elif (CL_in=='z' or CL_in =='y'):
-                        arduino.write(CL_in.encode())
-                        if (CL_in =='z'):
-                            num = input("Enter Cue Number [5-6]:")
-                            if num.isnumeric():
-                                cue = int(num)
-                                if (cue>=1 and cue<=6):
-                                    arduino.write(bytes([cue+48]))
-                                else:
-                                    print ("Invalid Cue Number")
-                            else:
-                                print ("Invalid Input")
-
-                    # change pump duration.
-                    elif (CL_in == ArdPumpInst):
-                        arduino.write(CL_in.encode())
-                        num = input("Enter Well Number:")
-                        if num.isnumeric():
-                            well = int(num)
-                            if (well>=1 & well<=6):
-                                arduino.write(bytes([well+48]))
-                                dur = input("Enter Pump duration on (in ms), or 'x' to reset:")
-                                print(dur)
-                                if len(dur)>4:
-                                    print("input needs to be less than 10s")
-                                else:
-                                    if dur.isnumeric(): # enter integer
-                                        dur_int = int(dur)
-                                        if (dur_int>0 & dur_int<1000):
-                                            arduino.write("<".encode())
-                                            for ch in dur:
-                                                arduino.write(ch.encode())
-                                                #print(ch.encode())
-                                            arduino.write(">".encode())
-                                    elif (dur=='x'): # reset to default
-                                         arduino.write("<".encode())
-                                         arduino.write("x".encode())
-                                         arduino.write(">".encode())
-                            else:
-                                print ("Invalid Well Number")
-                        else:
-                            print ("Invalid Input to well.")
-                    else:
-                        print ("Invalid Instruction.\n")
-                    print()
-                else:
-                    print(type(CL_in))
-                    print("error")
+                    elif (ins=='c'):
+                        try:
+                            cuenum = int(CL_in[1])
+                            if cuenum=>1 & cuenum<=6:
+                                ArdComm.ActivateCue(cuenum)
+                        except:
+                            print('Invalid Cue Number')
+                            pass
             except:
                 print ("error", sys.exc_info()[0])
             arduinoEv.clear()
         else:
             break
 
-def IR_Detect():
-    pass
-
-def getWell2Arduino():
-    well = input('Enter Well Number:')
-    if well.isnumeric():
-        well = int(well)-1;
-        if (well>=0 & well<=5):
-            arduino.write(bytes([well+48]))
-        else:
-            print ("Invalid Well Number")
-    else:
-        print ("Invalid Input")
 
 states = [State(name='AW0',on_enter=['inactivate_cue']),
           State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'],ignore_invalid_triggers=True),
