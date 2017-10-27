@@ -5,31 +5,25 @@
 #  Receives data through GPIO inputs and serial.
 ###
 
-import os, sys
-import argparse, serial, threading
-import datetime,time
-from RPI.GPIO import GPIO
+import threading
 from MazeHeader import *
 
 ## Input Parameters
 ParseArguments()
 
 ## Set serial comm with arduino
-ArdCommInst = ArdComm()
+Comm = ArdComm()
 
-global time_ref = time.time()
-
-
-TrialTypes = ["L","R"]
-def TrialScheduler(arduinoEv,interruptEv):
+global time_ref
+time_ref = time.time()
 
 # Main
 arduinoEv = threading.Event()
 interruptEv = threading.Event()
 
 # Declare threads
-readArdThr = threading.Thread(target = readArduino, args = (f, code, arduinoEv, interruptEv,))
-cmdLine = threading.Thread(target = getCmdLineInput, args = (arduinoEv,interruptEv,))
+readArdThr = threading.Thread(target = readArduino, args = (Comm, arduinoEv, interruptEv,))
+cmdLine = threading.Thread(target = getCmdLineInput, args = (Comm,arduinoEv,interruptEv,))
 
 try:
     # Start threads
@@ -38,8 +32,7 @@ try:
 
 except KeyboardInterrupt:
     print ("Keyboard Interrupt. Arduino Comm closed.")
-    f.close()
-    arduino.close()
+    close()
     interruptEv.set()
     readArdThr.join()
     cmdLine.join()
@@ -47,8 +40,7 @@ except KeyboardInterrupt:
 
 except:
     print ("error", sys.exc_info()[0])
-    f.close()
-    arduino.close()
+    close()
     interruptEv.set()
     readArdThr.join()
     cmdLine.join()

@@ -1,11 +1,14 @@
 
-import argparse
+import os, sys, argparse
+import serial, datetime, time
 from transitions import Machine, State
 import random
 import numpy as np
+#from RPi.GPIO import GPIO as gpio                                                
+import RPi.GPIO
 from collections import Counter
 
-GPIO.setmode(GPIO.BOARD)
+#gpio.setmode(gpio.BOARD)
 GPIOChans = [33,35,36,37,38,40]
 IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
 
@@ -69,8 +72,12 @@ class TrialSeq(object):
         print("Trial Goal Counts: ")
         print(Counter(self.GoalSeq))
 
-## This is the main state machine code.
- class Maze(object):
+def close():
+    datFile.close()
+    arduino.close()
+
+    ## This is the main state machine code.
+class Maze(object):
     nWells = 6
     nCues = 6
     def __init__(self):
@@ -145,19 +152,19 @@ class TrialSeq(object):
           return True
         return False
     def G3(self):
-        if self.Act_Cue==1 || self.Act_Cue==2:
+        if self.Act_Cue==1 or self.Act_Cue==2:
             return True
         return False
     def G4(self):
-        if self.Act_Cue==1 || self.Act_Cue==2:
+        if self.Act_Cue==1 or self.Act_Cue==2:
             return True
         return False
     def G5(self):
-        if self.Act_Cue==3 || self.Act_Cue==4:
+        if self.Act_Cue==3 or self.Act_Cue==4:
             return True
         return False
     def G6(self):
-        if self.Act_Cue==3 || self.Act_Cue==4:
+        if self.Act_Cue==3 or self.Act_Cue==4:
             return True
         return False
     def stop(self):
@@ -181,10 +188,11 @@ def ParseArguments():
     expt = args.Experiment_ID
 
     # baud rate
+    global baud
     if args.baud:
-        global baud = args.baud
+        baud = args.baud
     else:
-        global baud = 115200
+        baud = 115200
 
     # Code
     if args.code:
@@ -193,7 +201,10 @@ def ParseArguments():
         code = 'XXXX'
 
     ## File saving information.
+    global datFile
+    global saveFlag
     if args.save=='y':
+        saveFlag = True
         time_str = datetime.datetime.now().strftime('%H:%M:%S')
         time_str2 = datetime.datetime.now().strftime('h%H_m%M')
         date_obj = datetime.date.today()
@@ -217,45 +228,48 @@ def ParseArguments():
         h.close()
 
         # Data file
-        global datFile = open("%s%s.csv" % (save_folder,filename),'w')
+        datFile = open("%s%s.csv" % (save_folder,filename),'w')
 
-    else
-        global datFile =[]
+    else:
+        saveFlag = False
+        datFile =[]
 
-def readArduino(arduinoEv, interruptEv):
+def readArduino(ArdCommInst,arduinoEv, interruptEv):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
             time.sleep(0.001)
-            data = arduino.readline()[:-2] ## the last bit gets rid of the new-line chars
-            if data:
-                processArdData(arduinoEv,data)
-            else:
-                break
-
-def processArdData(arduinoEv, data):
-    try:
-        if isinstance(data,bytes):
-            x = data.decode('utf-8')
-            if (x[0]=='<'):
-                if (x[1:4]=='EC_'):
-                    code = x[4:]
-                    print (code)
-                    if args.save=='y':
-                        logEvent(code)
-                else:
-                    print (x[1:])
-            elif (x[0]=='>'):
-                arduinoEv.set()
-            else:
-                print (x)
+            data = ArdCommInst.ReadLine()
+            try:
+                if data:
+                    try:
+                        if isinstance(data,bytes):
+                            x = data.decode('utf-8')
+                            if (x[0]=='<'):
+                                if (x[1:4]=='EC_'):
+                                    code = x[4:]
+                                    print (code)
+                                    if saveFlag:
+                                        logEvent(code)
+                                else:
+                                    print (x[1:])
+                            elif (x[0]=='>'):
+                                arduinoEv.set()
+                            else:
+                                print (x)
+                        else:
+                            if data[0]=='>':
+                                arduinoEv.set()
+                            else:
+                                print (data)
+                    except:
+                        print ("error", sys.exc_info()[0])
+                        pass
+            except:
+                print ("error", sys.exc_info()[0])
+                pass
         else:
-            if data[0]=='>':
-                arduinoEv.set()
-            else:
-                print (data)
-    except:
-        pass
+            break
 
 def logEvent(code):
     datFile.write("%s,%f\n" % (code,time.time()-time_ref) )
@@ -264,55 +278,60 @@ def logEvent(code):
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
     def __init__(self):
+        global arduino
         arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
-        arduino.reset_input_buffer()
-        arduino.reset_output_buffer()
+        #arduino.reset_input_buffer()
+        #arduino.reset_output_buffer()
 
     def SendDigit(self,num):
         # arduino reads wells zero based. adding
-        self.arduino.write(bytes([num+48]))
+        arduino.write(bytes([num+48]))
 
     def SendChar(self,ch):
-        self.arduino.write(ch.encode())
+        arduino.write(ch.encode())
+
+    def ReadLine(self):
+        data = arduino.readline()[:-2] # the last bit gets rid of the new-line chars
+        return data
 
     def ActivateWell(self,well):
-        SendChar('w')
-        SendDigit(well)
+        self.SendChar('w')
+        self.SendDigit(well)
 
     def DeActivateWell(self,well):
-        SendChar('d')
-        SendDigit(well)
+        self.SendChar('d')
+        self.SendDigit(well)
 
     def ToggleLED(self,well):
-        SendChar('l')
-        SendDigit(well)
+        self.SendChar('l')
+        self.SendDigit(well)
 
     def ActivateCue(self,cueNum):
-        SendChar('z')
-        SendDigit(cueNum)
+        self.SendChar('c')
+        self.SendDigit(cueNum)
 
     def DeActivateCue(self):
-        SendChar('y')
+        self.SendChar('y')
 
     def ActivateAllWells(self):
-        SendChar('a')
+        self.SendChar('a')
 
     def DeliverReward(self,well):
-        SendChar('p')
-        SendDigit(well)
+        self.SendChar('p')
+        self.SendDigit(well)
 
     def ChangeReward(self,well, dur):
-        SendChar('c')
-        SendDigit(well)
+        self.SendChar('z')
+        self.SendDigit(well)
         dur_str = '<'+str(dur)+'>'
         for ch in dur_str:
-            SendChar(ch)
+            self.SendChar(ch)
 
     def Reset():
-        SendChar('r')
+        self.SendChar('r')
 
-def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
-    ArdWellInstSet = ['w','d','p','c','l'] # instructions for individual well control
+def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
+    ArdWellInstSet = ['w','d','p','l','z'] # instructions for individual well control
     ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
     time.sleep(1)
     while True:
@@ -337,43 +356,48 @@ def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
                     ins = CL_in[0]
                     # quit instruction
                     if (ins == 'q'):
-                        print ("Exiting arduino communication.")
-                        ArdComm.SendChar(CL_in)
+                        print('Terminating Arduino Communication')
+                        #ArdCommInst.SendChar(ins)
+                        #time.sleep(1)
                         interruptEv.set()
+                        close()
                         break
                     # global instructions: a,s,r,y
-                    elif any( ch in ins for ch in ArdGlobalInstSet):
-                        ArdComm.SendChar(ch)
+                    elif ins in ArdGlobalInstSet:
+                        ArdCommInst.SendChar(ins)
                     # actions on individual wells
-                    elif any( ch in ins for ch in ArdWellInstSet):
+                    elif ins in ArdWellInstSet:
                         try:
                             well = int(CL_in[1])-1 # zero indexing the wells
                             if well>=0 and well <=5:
                                 if ins=='w':
-                                    ArdComm.ActivateWell(well)
+                                    ArdCommInst.ActivateWell(well)
                                 elif ins=='d':
-                                    ArdComm.DeActivateWell(well)
+                                    ArdCommInst.DeActivateWell(well)
                                 elif ins=='p':
-                                    ArdComm.DeliverReward(well)
+                                    ArdCommInst.DeliverReward(well)
                                 elif ins=='l':
-                                    ArdComm.ToggleLED(well)
+                                    ArdCommInst.ToggleLED(well)
                                 elif ins=='z':
                                     try:
                                         dur = int(CL_in[3:])
                                         if dur>0 and dur<=1000:
-                                            ArdComm.ChangeReward(well,dur)
-                                    except
+                                            ArdCommInst.ChangeReward(well,dur)
+                                    except:
                                         print('Invalid duration for reward.')
                         except:
+                            #print ("error", sys.exc_info()[0])
                             print('Incorrect Instruction Format, Try again')
                             pass
 
                     # cue control
-                    elif (ins=='c'):
+                    elif ins=='c':
                         try:
                             cuenum = int(CL_in[1])
-                            if cuenum=>1 & cuenum<=6:
-                                ArdComm.ActivateCue(cuenum)
+                            if cuenum>=1 & cuenum<=6:
+                                ArdCommInst.ActivateCue(cuenum)
+                            else:
+                                print('Invalid Cue Number')
                         except:
                             print('Invalid Cue Number')
                             pass
@@ -408,23 +432,25 @@ def T3(object):
         {'trigger':'stop','source':'*','dest':'AW0'},
 
         # error transitions
-        {'trigger':'D1','source':'*','dest':'AW0','after':'error'}
-        {'trigger':'D2','source':'*','dest':'AW0','after':'error'}
-        {'trigger':'D3','source':'*','dest':'AW0','after':'error'}
-        {'trigger':'D4','source':'*','dest':'AW0','after':'error'}
-        {'trigger':'D5','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D1','source':'*','dest':'AW0','after':'error'},
+        {'trigger':'D2','source':'*','dest':'AW0','after':'error'},
+        {'trigger':'D3','source':'*','dest':'AW0','after':'error'},
+        {'trigger':'D4','source':'*','dest':'AW0','after':'error'},
+        {'trigger':'D5','source':'*','dest':'AW0','after':'error'},
         {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
         ]
 
 def T4():
         """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-        states = [State(name='AW0', on_enter=['inactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'], ignore_invalid_triggers=True),
-        State(name='AW2',ignore_invalid_triggers=True),
-        State(name='AW3',ignore_invalid_triggers=True),
-        State(name='AW4',ignore_invalid_triggers=True),
-        State(name='AW5',ignore_invalid_triggers=True),
-        State(name='AW6',ignore_invalid_triggers=True)
+        states = [
+            State(name='AW0', on_enter=['inactivate_cue'], ignore_invalid_triggers=True),
+            State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'], ignore_invalid_triggers=True),
+            State(name='AW2',ignore_invalid_triggers=True),
+            State(name='AW3',ignore_invalid_triggers=True),
+            State(name='AW4',ignore_invalid_triggers=True),
+            State(name='AW5',ignore_invalid_triggers=True),
+            State(name='AW6',ignore_invalid_triggers=True)
         ]
 
         conditions = ['G3','G4','G5','G6','G34','G56']
@@ -450,13 +476,14 @@ def T4():
             {'trigger':'D6','source':'AW6','dest':'AW1'},
 
             # error transitions
-            {'trigger':'D1','source':'*','dest':'AW0','after':'error'}
-            {'trigger':'D2','source':'*','dest':'AW0','after':'error'}
-            {'trigger':'D3','source':'*','dest':'AW0','after':'error'}
-            {'trigger':'D4','source':'*','dest':'AW0','after':'error'}
-            {'trigger':'D5','source':'*','dest':'AW0','after':'error'}
+            {'trigger':'D1','source':'*','dest':'AW0','after':'error'},
+            {'trigger':'D2','source':'*','dest':'AW0','after':'error'},
+            {'trigger':'D3','source':'*','dest':'AW0','after':'error'},
+            {'trigger':'D4','source':'*','dest':'AW0','after':'error'},
+            {'trigger':'D5','source':'*','dest':'AW0','after':'error'},
             {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
             ]
-MS = Maze()
-machine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
-           after_state_change='update_states')
+
+#MS = Maze()
+#machine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
+#           after_state_change='update_states')

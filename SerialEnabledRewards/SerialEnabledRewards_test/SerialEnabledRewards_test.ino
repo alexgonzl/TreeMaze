@@ -40,7 +40,7 @@ const int nWells = 6; // number of reward wells
     Declaration of Arduino Pins
 */
 // PINs for CUE signals output and control.
-const int CUEs1_PIN = 46;
+const int CUEs1_PIN = 53;
 
 // TTL Well LED Pins
 const int TTL_LED_Pins[6] = {4, 5, 6, 7, 8, 9};
@@ -340,6 +340,9 @@ void ProcessInput() {
       case 'y':
         TurnCueOff();
         break;
+      case 'q':
+        reset_states();
+        break;
       default:
         Serial.println("<IncorrectSuffix");
         Serial.print(">\n");
@@ -386,9 +389,9 @@ int SelectCueOn() {
   int cue = SerialReadNum();
   if (cue >= 1 && cue <= nCues) {
     ActiveCUE_ID = cue;
-    sendEventCode(CA, cue + 1);
+    sendEventCode(CA, cue);
     Serial.print("<Ard. Activated Cue #");
-    Serial.println(cue + 1);
+    Serial.println(cue);
     Serial.print(">\n");
   }
   else {
@@ -410,34 +413,34 @@ void TurnCueOff() {
 void SetCueParams(int CueNum) {
   switch (CueNum) {
     // color 1
-    case 0:
+    case 1:
       ActiveCueColor = CUE_Colors[0];
       ActiveCUE_Freq = CUE_Freqs[0];
       ActiveCUE_HalfCycle = CUE_HalfCycles[0];
       break;
-    case 1:
+    case 2:
       ActiveCueColor = CUE_Colors[0];
       ActiveCUE_Freq = CUE_Freqs[1];
       ActiveCUE_HalfCycle = CUE_HalfCycles[1];
       break;
     // color 2
-    case 2:
+    case 3:
       ActiveCueColor = CUE_Colors[1];
       ActiveCUE_Freq = CUE_Freqs[0];
       ActiveCUE_HalfCycle = CUE_HalfCycles[0];
       break;
-    case 3:
+    case 4:
       ActiveCueColor = CUE_Colors[1];
       ActiveCUE_Freq = CUE_Freqs[1];
       ActiveCUE_HalfCycle = CUE_HalfCycles[1];
       break;
     // constant colors
-    case 4:
+    case 5:
       ActiveCueColor = CUE_Colors[0];
       ActiveCUE_Freq = CUE_Freqs[2];
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
       break;
-    case 5:
+    case 6:
       ActiveCueColor = CUE_Colors[1];
       ActiveCUE_Freq = CUE_Freqs[2];
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
@@ -611,7 +614,9 @@ int SelectWellToDeActive() {
 }
 
 void ActivateWell(int well) {
-  if (well<=1){ Well_LED_ON(well); }
+  //if (well<=1){ Well_LED_ON(well); }
+  
+  Well_LED_ON(well);
   Well_Active_State[well] = true;
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
