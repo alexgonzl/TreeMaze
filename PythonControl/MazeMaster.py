@@ -11,13 +11,11 @@ import datetime,time
 from RPI.GPIO import GPIO
 from MazeHeader import *
 
-
-
 ## Input Parameters
-f,baud = ParseArguments()
+ParseArguments()
 
 ## Set serial comm with arduino
-ArdCommInst = ArdComm(baud) 
+ArdCommInst = ArdComm()
 
 global time_ref = time.time()
 

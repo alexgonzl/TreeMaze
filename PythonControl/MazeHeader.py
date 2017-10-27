@@ -74,83 +74,95 @@ class TrialSeq(object):
     nWells = 6
     nCues = 6
     def __init__(self):
-      self.Act_Well = np.zeros(self.nWells,dtype=bool)
-      self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
-      self.Act_Cue  = 0
-      self.DetectedWellNum = 0
-      self.WellDetectSeq = []
-      self.ValidWellDetectSeq = []
-      self.StateChangeFlag = 0
+        self.Act_Well = np.zeros(self.nWells,dtype=bool)
+        self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
+        self.LED_Status = np.zeros(self.nWells,dtype=bool)
+        self.Act_Cue  = 0
+        self.DetectedWellNum = 0
+        self.WellDetectSeq = []
+        self.ValidWellDetectSeq = []
+        self.StateChangeFlag = 0
 
     def activate_cue(self):
-      # send command to activate relevant cue
-      ArdComm.ActivateCue(self.Act_Cue)
+        # send command to activate relevant cue
+        ArdComm.ActivateCue(self.Act_Cue)
 
     def deactivate_cue(self):
-      # send command to inactivate cue
-      self.Act_Cue = 0
-      ArdComm.DeActivateCue()
+        # send command to inactivate cue
+        self.Act_Cue = 0
+        ArdComm.DeActivateCue()
 
     def activate_well(self,well):
-      if self.Act_Well[well]:
+        if self.Act_Well[well]:
           print('activated well', well+1)
           ArdComm.ActivateWell(well)
 
     def detect(self,well):
-      #well = event.kwargs.get('well',0)
-      well = well-1 # zero indexing the wells
-      self.DetectedWellNum = well
-      self.WellDetectSeq.append(well+1)
-      if self.Act_Well[well]==True:
+        #well = event.kwargs.get('well',0)
+        well = well-1 # zero indexing the wells
+        self.DetectedWellNum = well
+        self.WellDetectSeq.append(well+1)
+        if self.Act_Well[well]==True:
           self.Act_Well[well]=False
           self.ValidWellDetectSeq.append(well+1)
 
     def update_states(self):
-      well = int(self.state[2:])
-      self.PrevAct_Well = np.array(self.Act_Well)
+        state = int(self.state[2:])
+        self.PrevAct_Well = np.array(self.Act_Well)
 
-      if (well==99): #activate all
+        if (state==99): #activate all
           if all(self.Act_Well)==False:
               self.Act_Well[:] = True
-      elif (well>=1 and well<=6):
-          if self.Act_Well[well-1] == False:
-              self.Act_Well[well-1] = True
-      elif (well==34):
+        elif (state>=1 and state<=6):
+          if self.Act_Well[state-1] == False:
+              self.Act_Well[state-1] = True
+        elif (state==34):
           if (self.Act_Well[2]==False):
               self.Act_Well[2]=True
           if (self.Act_Well[3]==False):
               self.Act_Well[3]=True
-      elif (well==56):
+        elif (state==56):
           if (self.Act_Well[4]==False):
               self.Act_Well[4]=True
           if (self.Act_Well[5]==False):
               self.Act_Well[5]=True
-      else: # inactivate all
+        else: # inactivate all
           if any(self.Act_Well)==True:
               self.Act_Well[:] = False
 
-      change_wells = np.array((self.PrevAct_Well != self.Act_Well).nonzero()).flatten()
-      for ii in change_wells:
+        change_wells = np.array((self.PrevAct_Well != self.Act_Well).nonzero()).flatten()
+        for ii in change_wells:
           self.activate_well(ii)
 
-
     def next_trial(self):
-      pass
+        pass
     def G34(self):
-      if self.Act_Cue==5:
+        if self.Act_Cue==5:
           return True
-      return False
+        return False
     def G56(self):
-      if self.Act_Cue==6:
+        if self.Act_Cue==6:
           return True
-      return False
+        return False
     def G3(self):
-      pass
-      # if sequence.goal(current trial) == 3
-      # return true
-    def G4(self): pass
-    def G5(self): pass
-    def G6(self): pass
+        if self.Act_Cue==1 || self.Act_Cue==2:
+            return True
+        return False
+    def G4(self):
+        if self.Act_Cue==1 || self.Act_Cue==2:
+            return True
+        return False
+    def G5(self):
+        if self.Act_Cue==3 || self.Act_Cue==4:
+            return True
+        return False
+    def G6(self):
+        if self.Act_Cue==3 || self.Act_Cue==4:
+            return True
+        return False
+    def stop(self):
+         self.Act_Well[:] = False
+
 
 def ParseArguments():
     parser = argparse.ArgumentParser()
@@ -170,9 +182,9 @@ def ParseArguments():
 
     # baud rate
     if args.baud:
-        baud = args.baud
+        global baud = args.baud
     else:
-        baud = 115200
+        global baud = 115200
 
     # Code
     if args.code:
@@ -194,32 +206,30 @@ def ParseArguments():
 
         # Header
         os.makedirs(save_folder,exist_ok=True)
-        f = open("%s%s.txt" % (save_folder,filename),'w')
-        f.write("Date: %s \n" % date_str)
-        f.write("Current Time: %s \n" % time_str)
-        f.write("Experimenter: %s \n" % experimenter)
-        f.write("Subject: %s \n" % subj_id)
-        f.write("Experiment: %s \n" % expt)
-        f.write("Baud Rate: %s \n" % baud)
-        f.write("Experiment Code: %s \n" % code)
-        f.close()
+        h = open("%s%s.txt" % (save_folder,filename),'w')
+        h.write("Date: %s \n" % date_str)
+        h.write("Current Time: %s \n" % time_str)
+        h.write("Experimenter: %s \n" % experimenter)
+        h.write("Subject: %s \n" % subj_id)
+        h.write("Experiment: %s \n" % expt)
+        h.write("Baud Rate: %s \n" % baud)
+        h.write("Experiment Code: %s \n" % code)
+        h.close()
 
         # Data file
-        if args.save=='y':
-            f = open("%s%s.csv" % (save_folder,filename),'w')
-        else:
-            f = []
+        global datFile = open("%s%s.csv" % (save_folder,filename),'w')
 
-        return f, baud
+    else
+        global datFile =[]
 
-def readArduino(f, code, arduinoEv, interruptEv):
+def readArduino(arduinoEv, interruptEv):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
             time.sleep(0.001)
             data = arduino.readline()[:-2] ## the last bit gets rid of the new-line chars
             if data:
-                processArdData(data)
+                processArdData(arduinoEv,data)
             else:
                 break
 
@@ -232,7 +242,7 @@ def processArdData(arduinoEv, data):
                     code = x[4:]
                     print (code)
                     if args.save=='y':
-                        logEvent(f,code,time_ref)
+                        logEvent(code)
                 else:
                     print (x[1:])
             elif (x[0]=='>'):
@@ -247,13 +257,13 @@ def processArdData(arduinoEv, data):
     except:
         pass
 
-def logEvent(f, code):
-    f.write("%s,%f\n" % (code,time.time()-time_ref) )
+def logEvent(code):
+    datFile.write("%s,%f\n" % (code,time.time()-time_ref) )
 
 # function for sending automatic commands to arduino without comand line input.
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
-    def __init__(self,baud):
+    def __init__(self):
         arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
         arduino.reset_input_buffer()
         arduino.reset_output_buffer()
@@ -271,6 +281,10 @@ class ArdComm(object):
 
     def DeActivateWell(self,well):
         SendChar('d')
+        SendDigit(well)
+
+    def ToggleLED(self,well):
+        SendChar('l')
         SendDigit(well)
 
     def ActivateCue(self,cueNum):
@@ -298,10 +312,8 @@ class ArdComm(object):
         SendChar('r')
 
 def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
-    ArdWellInstSet = ['w','d','p','c'] # instructions for individual well control
+    ArdWellInstSet = ['w','d','p','c','l'] # instructions for individual well control
     ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
-    ArdPumpInst = 'c' # instruction to change pump duration.
-    ArdCueInst = ['z','y'] # instructions for cue control
     time.sleep(1)
     while True:
         if not interruptEv.is_set():
@@ -313,6 +325,7 @@ def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
                 print ("Enter 's' to check status")
                 print ("Enter 'w#', to activate a well (e.g 'w1')")
                 print ("Enter 'p#', to turn on pump (e.g 'p3') ")
+                print ("Enter 'l#', to toggle LED (e.g 'l1') ")
                 print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
                 print ("Enter 'd#' to deactivate a well ('d5')")
                 print ("Enter 'c#' to turn on a cue ('c1')")
@@ -342,6 +355,8 @@ def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
                                     ArdComm.DeActivateWell(well)
                                 elif ins=='p':
                                     ArdComm.DeliverReward(well)
+                                elif ins=='l':
+                                    ArdComm.ToggleLED(well)
                                 elif ins=='z':
                                     try:
                                         dur = int(CL_in[3:])
@@ -368,32 +383,80 @@ def getCmdLineInput(ArdComm,arduinoEv,interruptEv):
         else:
             break
 
+def T3(object):
+    """T3 class refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-states = [State(name='AW0',on_enter=['inactivate_cue']),
-          State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'],ignore_invalid_triggers=True),
-          State(name='AW2'),
-          'AW3','AW4','AW5','AW6','AW34','AW56'
-         ]
+    states = [State(name='AW0', on_enter=['inactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'], ignore_invalid_triggers=True),
+    State(name='AW2',ignore_invalid_triggers=True),
+    State(name='AW34',ignore_invalid_triggers=True),
+    State(name='AW56',ignore_invalid_triggers=True)
+    ]
 
-conditions = ['G3','G4','G5','G6','G34','G56']
-transitions = [
-    {'trigger':'D1','source':'AW1','dest':'AW2'},
-    {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'inactivate_cue'},
-    {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':'inactivate_cue'},
-    {'trigger':'D2','source':'AW2','dest':'AW0'},
+    conditions = ['G3','G4','G5','G6','G34','G56']
+    transitions = [
+        # valid transitions
+        {'trigger':'D1','source':'AW1','dest':'AW2'},
 
-    {'trigger':'D3','source':'AW34','dest':'AW4'},
-    {'trigger':'D3','source':'AW3','dest':'AW1'},
-    {'trigger':'D4','source':'AW34','dest':'AW3'},
-    {'trigger':'D4','source':'AW4','dest':'AW1'},
+        {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'inactivate_cue'},
+        {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':'inactivate_cue'},
 
-    {'trigger':'D5','source':'AW5','dest':'AW1'},
-    {'trigger':'D5','source':'AW56','dest':'AW6'},
-    {'trigger':'D6','source':'AW6','dest':'AW1'},
-    {'trigger':'D6','source':'AW56','dest':'AW5'},
+        {'trigger':'D3','source':'AW34','dest':'AW1'},
+        {'trigger':'D4','source':'AW34','dest':'AW1'},
+        {'trigger':'D5','source':'AW56','dest':'AW1'},
+        {'trigger':'D6','source':'AW56','dest':'AW1'},
 
-    {'trigger':'stop','source':'*','dest':'AW0'}]
+        {'trigger':'stop','source':'*','dest':'AW0'},
 
+        # error transitions
+        {'trigger':'D1','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D2','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D3','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D4','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D5','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
+        ]
+
+def T4():
+        """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+
+        states = [State(name='AW0', on_enter=['inactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'], ignore_invalid_triggers=True),
+        State(name='AW2',ignore_invalid_triggers=True),
+        State(name='AW3',ignore_invalid_triggers=True),
+        State(name='AW4',ignore_invalid_triggers=True),
+        State(name='AW5',ignore_invalid_triggers=True),
+        State(name='AW6',ignore_invalid_triggers=True)
+        ]
+
+        conditions = ['G3','G4','G5','G6','G34','G56']
+        transitions = [
+            # stop
+            {'trigger':'stop','source':'*','dest':'AW0'},
+
+            # basic
+            {'trigger':'D1','source':'AW1','dest':'AW2'},
+
+            # right goals
+            {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'inactivate_cue'},
+            {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'inactivate_cue'},
+
+            # left goals
+            {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'inactivate_cue'},
+            {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'inactivate_cue'},
+
+            # go back
+            {'trigger':'D3','source':'AW3','dest':'AW1'},
+            {'trigger':'D4','source':'AW4','dest':'AW1'},
+            {'trigger':'D5','source':'AW5','dest':'AW1'},
+            {'trigger':'D6','source':'AW6','dest':'AW1'},
+
+            # error transitions
+            {'trigger':'D1','source':'*','dest':'AW0','after':'error'}
+            {'trigger':'D2','source':'*','dest':'AW0','after':'error'}
+            {'trigger':'D3','source':'*','dest':'AW0','after':'error'}
+            {'trigger':'D4','source':'*','dest':'AW0','after':'error'}
+            {'trigger':'D5','source':'*','dest':'AW0','after':'error'}
+            {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
+            ]
 MS = Maze()
 machine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
            after_state_change='update_states')

@@ -6,15 +6,16 @@
   a -> activate all wells
   w -> activate individual well
   d -> deactivate individual well
-  s -> check status of all wells
+  l -> toggle LED on/off
+  s -> check status
   r -> reset. deactivates all wells
   p -> select pump to turn-on
-  c -> change pump duration
-  z -> select cue {1,2,3,4}
+  c -> select cue
+  z -> change pump duration
   y -> turn off cue.
 
   Alex Gonzalez
-  Updated: 9/21/17
+  Updated: 10/27/17
 */
 
 
@@ -71,8 +72,7 @@ long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
 /* **********************************
    End of Declaration of Arduino Pins
 */
-// Setup of Neopixel:
-//Adafruit_NeoPixel NeoPix = Adafruit_NeoPixel(, CUEs1_PIN, NEO_GRB + NEO_KHZ800);
+// Setup of Neopixel Matrix
 Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(8, 8, CUEs1_PIN,
   NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
   NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
@@ -315,9 +315,8 @@ void ProcessInput() {
         SelectWellToActive();
         break;
       case 'l':
-        // turns LED on for active goal well(s)
-        // led is on for home/decision wells
-        Well_LED_ON();
+        // toggle LED On/Off
+        ToggleLED();
         break;
       case 'd':
         SelectWellToDeActive();
@@ -335,10 +334,10 @@ void ProcessInput() {
         reset_states();
         Serial.print("<All wells inactivated.");
         break;
-      case 'z':
+      case 'c':
         SelectCueOn();
         break;
-      case 'c':
+      case 'y':
         TurnCueOff();
         break;
       default:
@@ -612,15 +611,12 @@ int SelectWellToDeActive() {
 }
 
 void ActivateWell(int well) {
+  if (well<=1){ Well_LED_ON(well); }
+
   Well_Active_State[well] = true;
-
-  Well_LED_ON();
-//  if (well <= 1) {
-//    Well_LED_ON();
-//  };
-
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
+
   //Deliver_Reward(well);
   sendEventCode(AW, well + 1);
 }
@@ -635,33 +631,42 @@ void DeActivateWell(int well) {
 
 void ActivateAllWells() {
   for (int well = 0; well < nWells; well++) {
+    Well_LED_ON(well);
     ActivateWell(well);
     //Deliver_Reward(well);
   }
 }
+
 void reset_states() {
-  for (int ii = 0; ii < nWells; ii++) {
-    DeActivateWell(ii);
-    TurnOFFPump(ii);
+  for (int well = 0; well < nWells; well++) {
+    DeActivateWell(well);
+    TurnOFFPump(well);
   }
+  TurnCueOff();
 }
 
 /****************************************
           Well LED functions
 *****************************************/
-void  Well_LED_ON() {
-  // turn on LED on call for active wells only
-  for (int well = 0; well < nWells; well++) {
-    if (Well_Active_State[well] == true & Well_LED_State[well] == false) {
-      digitalWrite(Well_LED_Pins[well], HIGH);
-      Well_LED_State[well] = true;
-    }
-  }
+void  Well_LED_ON(int well) {
+  digitalWrite(Well_LED_Pins[well], HIGH);
+  Well_LED_State[well] = true;
 }
 
 void  Well_LED_OFF(int well) {
   digitalWrite(Well_LED_Pins[well], LOW);
   Well_LED_State[well] = false;
+}
+
+void ToggleLED(){
+  int well = SerialReadNum();
+  if (well >= 0 && well <= 5){
+    if (Well_LED_State[well] == false){
+      Well_LED_ON(well);
+    }  else {
+      Well_LED_OFF(well);
+    }
+  }
 }
 
 /****************************************
