@@ -15,7 +15,7 @@
   y -> turn off cue.
 
   Alex Gonzalez
-  Updated: 10/27/17
+  Updated: 11/1/17
 */
 
 
@@ -92,7 +92,7 @@ uint32_t  ActiveCueColor = NP_off;
 float ActiveCUE_Freq = 0;
 long ActiveCUE_HalfCycle = 0;
 bool ActiveCUE_UP = false;
-int ActiveCUE_ID = -1;
+int ActiveCUE_ID = 0;
 
 // Cue timers
 unsigned long CUE_Timer;      // time ref for pump on
@@ -393,7 +393,7 @@ int SelectCueOn() {
     Serial.print(">\n");
   }
   else {
-    ActiveCUE_ID = -1;
+    ActiveCUE_ID = 0;
     Serial.println("<\nArd. Invalid cue number.");
     Serial.print(">\n");
   }
@@ -403,7 +403,7 @@ int SelectCueOn() {
 
 void TurnCueOff() {
   sendEventCode(CD, ActiveCUE_ID);
-  SetCueParams(-1);
+  SetCueParams(0);
   CUE_TimeRef = 15000L;
   CUE_Timer   = 0;
 }
@@ -444,7 +444,7 @@ void SetCueParams(int CueNum) {
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
       break;
     default:
-      ActiveCUE_ID = -1;
+      ActiveCUE_ID = 0;
       ActiveCueColor = NP_off;
       ActiveCUE_Freq = 0;
       ActiveCUE_HalfCycle = 0;
@@ -681,6 +681,8 @@ void print_states() {
     Serial.println(ii + 1);
     Serial.print("<Well Active State = ");
     Serial.println(Well_Active_State[ii]);
+    Serial.print("<Well LED State = ");
+    Serial.println(Well_LED_State[ii]);
     Serial.print("<Pump On Dur = ");
     Serial.println(Pump_ON_DUR[ii]);
   }
@@ -688,7 +690,7 @@ void print_states() {
   Serial.println("<\n");
   if (ActiveCUE_ID >= 0) {
     Serial.print("Active Cue = ");
-    Serial.println(ActiveCUE_ID + 1);
+    Serial.println(ActiveCUE_ID);
   }
   Serial.print(">\n");
 }

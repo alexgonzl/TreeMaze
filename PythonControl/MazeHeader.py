@@ -73,8 +73,9 @@ class TrialSeq(object):
         print(Counter(self.GoalSeq))
 
 def close():
-    datFile.close()
-    arduino.close()
+    if hasattr(datFile,'close'): 
+        datFile.close()
+    arduino.__exit__()
 
     ## This is the main state machine code.
 class Maze(object):
@@ -357,7 +358,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                 print ("Enter 'q' to exit")
                 CL_in = input()
 
-                if (isinstance(CL_in,str)):
+                if (isinstance(CL_in,str) and len(CL_in)>0):
                     ins = CL_in[0]
                     # quit instruction
                     if (ins == 'q'):
@@ -407,7 +408,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                             print('Invalid Cue Number')
                             pass
             except:
-                print ("error", sys.exc_info()[0])
+                print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
             arduinoEv.clear()
         else:
             break
