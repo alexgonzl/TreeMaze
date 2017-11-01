@@ -402,7 +402,7 @@ int SelectCueOn() {
 }
 
 void TurnCueOff() {
-  sendEventCode(CD, ActiveCUE_ID + 1);
+  sendEventCode(CD, ActiveCUE_ID);
   SetCueParams(-1);
   CUE_TimeRef = 15000L;
   CUE_Timer   = 0;
