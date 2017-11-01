@@ -4,7 +4,7 @@ import serial, datetime, time
 from transitions import Machine, State
 import random
 import numpy as np
-#from RPi.GPIO import GPIO as gpio                                                
+#from RPi.GPIO import GPIO as gpio
 import RPi.GPIO
 from collections import Counter
 
@@ -85,6 +85,7 @@ class Maze(object):
         self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
         self.LED_Status = np.zeros(self.nWells,dtype=bool)
         self.Act_Cue  = 0
+        self.Act_Cue_State = False
         self.DetectedWellNum = 0
         self.WellDetectSeq = []
         self.ValidWellDetectSeq = []
@@ -92,11 +93,13 @@ class Maze(object):
 
     def activate_cue(self):
         # send command to activate relevant cue
-        ArdComm.ActivateCue(self.Act_Cue)
+        if self.Act_Cue > 1:
+            self.Act_Cue_State = True
+            ArdComm.ActivateCue(self.Act_Cue)
 
     def deactivate_cue(self):
         # send command to inactivate cue
-        self.Act_Cue = 0
+        self.Act_Cue_State = False
         ArdComm.DeActivateCue()
 
     def activate_well(self,well):
@@ -169,6 +172,8 @@ class Maze(object):
         return False
     def stop(self):
          self.Act_Well[:] = False
+         self.Act_Cue = 0
+         self.Act_Cue_State = False
 
 
 def ParseArguments():
@@ -263,10 +268,10 @@ def readArduino(ArdCommInst,arduinoEv, interruptEv):
                             else:
                                 print (data)
                     except:
-                        print ("error", sys.exc_info()[0])
+                        #print ("error", sys.exc_info()[0])
                         pass
             except:
-                print ("error", sys.exc_info()[0])
+                #print ("error", sys.exc_info()[0])
                 pass
         else:
             break
@@ -280,8 +285,8 @@ class ArdComm(object):
     def __init__(self):
         global arduino
         arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
-        #arduino.reset_input_buffer()
-        #arduino.reset_output_buffer()
+        arduino.reset_input_buffer()
+        arduino.reset_output_buffer()
 
     def SendDigit(self,num):
         # arduino reads wells zero based. adding
@@ -410,7 +415,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
 def T3(object):
     """T3 class refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-    states = [State(name='AW0', on_enter=['inactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'], ignore_invalid_triggers=True),
+    states = [State(name='AW0', on_enter=['deactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter=['deactivate_cue','next_trial'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
     State(name='AW2',ignore_invalid_triggers=True),
     State(name='AW34',ignore_invalid_triggers=True),
     State(name='AW56',ignore_invalid_triggers=True)
@@ -418,26 +423,44 @@ def T3(object):
 
     conditions = ['G3','G4','G5','G6','G34','G56']
     transitions = [
+        # start/stop
+        {'trigger':'stop','source':'*','dest':'AW0'},
+        {'trigger':'start','source':'*','dest':'AW1'},
+
         # valid transitions
         {'trigger':'D1','source':'AW1','dest':'AW2'},
 
-        {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'inactivate_cue'},
-        {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':'inactivate_cue'},
+        # goals on the right
+        {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'deactivate_cue'},
+        {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
+        {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
 
+        # goals on the left
+        {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':'deactivate_cue'},
+        {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
+        {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
+
+        # correct choices
         {'trigger':'D3','source':'AW34','dest':'AW1'},
         {'trigger':'D4','source':'AW34','dest':'AW1'},
+
         {'trigger':'D5','source':'AW56','dest':'AW1'},
         {'trigger':'D6','source':'AW56','dest':'AW1'},
 
-        {'trigger':'stop','source':'*','dest':'AW0'},
+        # incorrect choices
+        {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrect'},
+        {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrect'},
 
-        # error transitions
-        {'trigger':'D1','source':'*','dest':'AW0','after':'error'},
-        {'trigger':'D2','source':'*','dest':'AW0','after':'error'},
-        {'trigger':'D3','source':'*','dest':'AW0','after':'error'},
-        {'trigger':'D4','source':'*','dest':'AW0','after':'error'},
-        {'trigger':'D5','source':'*','dest':'AW0','after':'error'},
-        {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
+        {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrect'},
+        {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrect'},
+
+        # # error transitions
+        # {'trigger':'D1','source':'*','dest':'AW0','after':'error'},
+        # {'trigger':'D2','source':'*','dest':'AW0','after':'error'},
+        # {'trigger':'D3','source':'*','dest':'AW0','after':'error'},
+        # {'trigger':'D4','source':'*','dest':'AW0','after':'error'},
+        # {'trigger':'D5','source':'*','dest':'AW0','after':'error'},
+        # {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
         ]
 
 def T4():
@@ -462,8 +485,10 @@ def T4():
             {'trigger':'D1','source':'AW1','dest':'AW2'},
 
             # right goals
+            {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'inactivate_cue'},
             {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'inactivate_cue'},
             {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'inactivate_cue'},
+
 
             # left goals
             {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'inactivate_cue'},
@@ -487,3 +512,23 @@ def T4():
 #MS = Maze()
 #machine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
 #           after_state_change='update_states')
+
+# # list of detections
+# dlist = [1,2,3,4,1,2,4,3,1,2,3,5,6]
+# goals = [1,2,3,4,5,6]
+# cuelist = [5,5,6,6,5,6]
+# detect_callback = []
+# MS.Act_Cue=5
+# for ii in goals:
+#     detect_callback.append(getattr(MS,'D'+str(ii)))
+#
+#
+# MS.to_AW1()
+# trialcount =0
+# for ii in dlist:
+#     print(MS.state)
+#     if ii==1 and MS.state==1:
+#         MS.activate_cue=cuelist(trialcount)
+#         trialcount=trialcount+1
+#     MS.detect(ii)
+#     detect_callback[ii-1]()

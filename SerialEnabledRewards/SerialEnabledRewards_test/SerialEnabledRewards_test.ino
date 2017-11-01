@@ -80,14 +80,16 @@ Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(8, 8, CUEs1_PIN,
 
 const uint32_t  NP_blueviolet = NeoPix.Color(120, 0, 110);
 const uint32_t  NP_green = NeoPix.Color(0, 120, 0);
+const uint32_t  NP_white = NeoPix.Color(255, 255, 255);
 const uint32_t  NP_off = NeoPix.Color(0, 0, 0);
 
 // Cue parameters
 const int nCues = 6;
-const uint32_t  CUE_Colors[2] = {NP_blueviolet, NP_green}; // array for NP colors
+const uint32_t  CUE_Colors[2] = {NP_blueviolet, NP_green, NP_white}; // array for NP colors
 const float CUE_Freqs[3] = {1.67, 3.85, 0};
 // half cycles of CUE_Freqs in ms: HC = (1/F)/2*1000
 const long CUE_HalfCycles[3] = {300, 130, 0};
+const long CUE_IncorrectTime = 2;
 
 // cue state variables
 uint32_t  ActiveCueColor = NP_off;
@@ -97,7 +99,7 @@ bool ActiveCUE_UP = false;
 int ActiveCUE_ID = -1;
 
 // Cue timers
-unsigned long CUE_Timer;      // time ref for pump on
+unsigned long CUE_Timer;
 unsigned long CUE_TimeRef;
 
 // Serial State Variable:
@@ -225,6 +227,12 @@ void loop() {
           ActiveCUE_UP = true;
           ChangeCueColor(ActiveCueColor);
         }
+      }
+    } else if (ActiveCUE_ID==9){
+      CUE_Timer = millis() - CUE_TimeRef;
+      if (CUE_Timer > CUE_IncorrectTime){
+        ActiveCUE_ID = 0;
+        ChangeCueColor(NP_off);
       }
     }
   } else if (SerialState) {
@@ -387,7 +395,7 @@ void sendEventCode(char* code, int num) {
 *****************************************/
 int SelectCueOn() {
   int cue = SerialReadNum();
-  if (cue >= 1 && cue <= nCues) {
+  if (cue >= 1 && cue <= 9) {
     ActiveCUE_ID = cue;
     sendEventCode(CA, cue);
     Serial.print("<Ard. Activated Cue #");
@@ -442,6 +450,11 @@ void SetCueParams(int CueNum) {
       break;
     case 6:
       ActiveCueColor = CUE_Colors[1];
+      ActiveCUE_Freq = CUE_Freqs[2];
+      ActiveCUE_HalfCycle = CUE_HalfCycles[2];
+      break;
+    case 9:
+      ActiveCueColor = NP_white;
       ActiveCUE_Freq = CUE_Freqs[2];
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
       break;
@@ -615,7 +628,7 @@ int SelectWellToDeActive() {
 
 void ActivateWell(int well) {
   //if (well<=1){ Well_LED_ON(well); }
-  
+
   Well_LED_ON(well);
   Well_Active_State[well] = true;
   Well_Active_TimeRef[well] = millis();
