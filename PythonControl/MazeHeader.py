@@ -5,12 +5,18 @@ from transitions import Machine, State
 import random
 import numpy as np
 #from RPi.GPIO import GPIO as gpio
-import RPi.GPIO
+# import RPi.GPIO
 from collections import Counter
 
-#gpio.setmode(gpio.BOARD)
-GPIOChans = [33,35,36,37,38,40]
-IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
+# G
+# #gpio.setmode(gpio.BOARD)
+# GPIOChans = [33,35,36,37,38,40]
+# IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
+
+global MS, StateMachine
+global baud, datFile,saveFlag
+global PythonControlFlag
+PythonControlFlag=False
 
 class TrialSeq(object):
     def __init__(self,N):
@@ -40,13 +46,13 @@ class TrialSeq(object):
             _GoalSeq[_sublist] = _cuegoalseq
 
         # another implementation of goal allocation, no restrain for # of goal
-#         for ii in range(N):
-#             for jj in _CueTypes:
-#                 rr = random.random():
-#                 for kk in range(_GoalIDsByCue[jj]):
-#                     if rr < (kk+1)*(1/_nGoalsByCue[jj]):
-#                         self.GoalSeq[ii] = _GoalIDsByCue[jj][kk]
-#                         break
+        #         for ii in range(N):
+        #             for jj in _CueTypes:
+        #                 rr = random.random():
+        #                 for kk in range(_GoalIDsByCue[jj]):
+        #                     if rr < (kk+1)*(1/_nGoalsByCue[jj]):
+        #                         self.GoalSeq[ii] = _GoalIDsByCue[jj][kk]
+        #                         break
         # del temp variables
         del _sublist, _cuegoalseq
 
@@ -73,11 +79,254 @@ class TrialSeq(object):
         print(Counter(self.GoalSeq))
 
 def close():
-    if hasattr(datFile,'close'): 
+    if hasattr(datFile,'close'):
         datFile.close()
     arduino.__exit__()
 
-    ## This is the main state machine code.
+def ParseArguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("Experimenter_ID", help="Please indicate the experimenters ID")
+    parser.add_argument("Subject_ID", help="Please the Subject's ID")
+    parser.add_argument("Experiment_ID", help="Please indicate the experiment")
+    parser.add_argument("--code", help="Specific experimental protocol for the session")
+    parser.add_argument("--baud",type=int, choices = [9600,14400,19200,28800,38400,57600,115200],
+                        help="Baud rate for arduino. Defaults to 115200.")
+    parser.add_argument("--save", choices=['y','n'])
+    parser.add_argument("--save_folder", help="Data storage folder. \n Defaults to '/home/pi/Documents/TreeMaze/Data/Experiment/Subject_ID/'")
+    args = parser.parse_args()
+
+    experimenter = args.Experimenter_ID
+    subj_id = args.Subject_ID
+    expt = args.Experiment_ID
+
+    # baud rate
+    if args.baud:
+        baud = args.baud
+    else:
+        baud = 115200
+
+    # Code
+    if args.code:
+        args.code
+    else:
+        code = 'XXXX'
+
+    ## File saving information.
+    if args.save=='y':
+        saveFlag = True
+        time_str = datetime.datetime.now().strftime('%H:%M:%S')
+        time_str2 = datetime.datetime.now().strftime('h%H_m%M')
+        date_obj = datetime.date.today()
+        date_str = "%s_%s_%s" % (date_obj.month,date_obj.day,date_obj.year)
+        if args.save_folder:
+            save_folder = args.save_folder
+        else:
+            save_folder = "/home/pi/Documents/TreeMaze/Data/%s/%s/%s/" % (expt,subj_id,date_str)
+        filename = "%s_%s_%s" % (subj_id,date_str,time_str2)
+
+        # Header
+        os.makedirs(save_folder,exist_ok=True)
+        h = open("%s%s.txt" % (save_folder,filename),'w')
+        h.write("Date: %s \n" % date_str)
+        h.write("Current Time: %s \n" % time_str)
+        h.write("Experimenter: %s \n" % experimenter)
+        h.write("Subject: %s \n" % subj_id)
+        h.write("Experiment: %s \n" % expt)
+        h.write("Baud Rate: %s \n" % baud)
+        h.write("Experiment Code: %s \n" % code)
+        h.close()
+
+        # Data file
+        datFile = open("%s%s.csv" % (save_folder,filename),'w')
+
+    else:
+        saveFlag = False
+        datFile =[]
+
+# Main Threads:
+def readArduino(ArdCommInst,arduinoEv, interruptEv):
+    while True:
+        if not interruptEv.is_set():
+            # reduce cpu load by reading arduino slower
+            time.sleep(0.001)
+            data = ArdCommInst.ReadLine()
+            try:
+                if data:
+                    try:
+                        if isinstance(data,bytes):
+                            x = data.decode('utf-8')
+                            if (x[0]=='<'):
+                                if (x[1:4]=='EC_'):
+                                    code = x[4:]
+                                    print (code)
+                                    if PythonControlFlag:
+                                        PythonControl(event=code)
+                                    if saveFlag:
+                                        logEvent(code)
+                                else:
+                                    print (x[1:])
+                            elif (x[0]=='>'):
+                                arduinoEv.set()
+                            else:
+                                print (x)
+                        else:
+                            if data[0]=='>':
+                                arduinoEv.set()
+                            else:
+                                print (data)
+                    except:
+                        #print ("error", sys.exc_info()[0])
+                        pass
+            except:
+                #print ("error", sys.exc_info()[0])
+                pass
+        else:
+            break
+def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
+    ArdWellInstSet = ['w','d','p','l','z'] # instructions for individual well control
+    ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
+    PythonControlSet = ['T2','T3','T4']
+    time.sleep(1)
+    while True:
+        if not interruptEv.is_set():
+            # wait 1 second for arduino information to come in
+            arduinoEv.wait(1)
+            try:
+                print ("Enter auto=T#, for automatic sequencing.")
+                print ("Enter 'a' to activate all wells")
+                print ("Enter 'r' to reset all wells")
+                print ("Enter 's' to check status")
+                print ("Enter 'w#', to activate a well (e.g 'w1')")
+                print ("Enter 'p#', to turn on pump (e.g 'p3') ")
+                print ("Enter 'l#', to toggle LED (e.g 'l1') ")
+                print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
+                print ("Enter 'd#' to deactivate a well ('d5')")
+                print ("Enter 'c#' to turn on a cue ('c1')")
+                print ("Enter 'y' to turn off the cue")
+                print ("Enter 'q' to exit")
+                CL_in = input()
+
+                if (isinstance(CL_in,str) and len(CL_in)>0):
+                    if (CL_in[:4]=='auto'):
+                        if (CL_in[5:7] in PythonControlSet):
+                            PythonControlFlag=True
+                            PythonControl('start',protocol=CL_in[5:7])
+
+                    elif (CL_in=='stop')
+                    ins = CL_in[0]
+                    # quit instruction
+                    if (ins == 'q'):
+                        print('Terminating Arduino Communication')
+                        interruptEv.set()
+                        close()
+                        break
+
+                    # global instructions: a,s,r,y
+                    elif ins in ArdGlobalInstSet:
+                        ArdCommInst.SendChar(ins)
+
+                    # actions on individual wells
+                    elif ins in ArdWellInstSet:
+                        try:
+                            well = int(CL_in[1])-1 # zero indexing the wells
+                            if well>=0 and well <=5:
+                                if ins=='w':
+                                    ArdCommInst.ActivateWell(well)
+                                elif ins=='d':
+                                    ArdCommInst.DeActivateWell(well)
+                                elif ins=='p':
+                                    ArdCommInst.DeliverReward(well)
+                                elif ins=='l':
+                                    ArdCommInst.ToggleLED(well)
+                                elif ins=='z':
+                                    try:
+                                        dur = int(CL_in[3:])
+                                        if dur>0 and dur<=1000:
+                                            ArdCommInst.ChangeReward(well,dur)
+                                    except:
+                                        print('Invalid duration for reward.')
+                        except:
+                            #print ("error", sys.exc_info()[0])
+                            print('Incorrect Instruction Format, Try again')
+                            pass
+
+                    # cue control
+                    elif ins=='c':
+                        try:
+                            cuenum = int(CL_in[1])
+                            if cuenum>=1 & cuenum<=6:
+                                ArdCommInst.ActivateCue(cuenum)
+                            else:
+                                print('Invalid Cue Number')
+                        except:
+                            print('Invalid Cue Number')
+                            pass
+            except:
+                print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+            arduinoEv.clear()
+        else:
+            break
+
+def logEvent(code):
+    datFile.write("%s,%f\n" % (code,time.time()-time_ref) )
+
+# function for sending automatic commands to arduino without comand line input.
+class ArdComm(object):
+    """Spetialized functions for arduino communication."""
+    def __init__(self):
+        global arduino
+        arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
+        arduino.reset_input_buffer()
+        arduino.reset_output_buffer()
+
+    def SendDigit(self,num):
+        # arduino reads wells zero based. adding
+        arduino.write(bytes([num+48]))
+
+    def SendChar(self,ch):
+        arduino.write(ch.encode())
+
+    def ReadLine(self):
+        data = arduino.readline()[:-2] # the last bit gets rid of the new-line chars
+        return data
+
+    def ActivateWell(self,well):
+        self.SendChar('w')
+        self.SendDigit(well)
+
+    def DeActivateWell(self,well):
+        self.SendChar('d')
+        self.SendDigit(well)
+
+    def ToggleLED(self,well):
+        self.SendChar('l')
+        self.SendDigit(well)
+
+    def ActivateCue(self,cueNum):
+        self.SendChar('c')
+        self.SendDigit(cueNum)
+
+    def DeActivateCue(self):
+        self.SendChar('y')
+
+    def ActivateAllWells(self):
+        self.SendChar('a')
+
+    def DeliverReward(self,well):
+        self.SendChar('p')
+        self.SendDigit(well)
+
+    def ChangeReward(self,well, dur):
+        self.SendChar('z')
+        self.SendDigit(well)
+        dur_str = '<'+str(dur)+'>'
+        for ch in dur_str:
+            self.SendChar(ch)
+
+    def Reset():
+        self.SendChar('r')
+
+
 class Maze(object):
     nWells = 6
     nCues = 6
@@ -175,343 +424,103 @@ class Maze(object):
          self.Act_Well[:] = False
          self.Act_Cue = 0
          self.Act_Cue_State = False
+    def D0(self):
+        pass
 
+def PythonControl(inst,code=[]):
+    """This function manages state transitions"""
+    if PythonControlFlag:
+        if inst == 'start':
+            MS = Maze()
+            Goals = [1,2,3,4,5,6]
 
-def ParseArguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("Experimenter_ID", help="Please indicate the experimenters ID")
-    parser.add_argument("Subject_ID", help="Please the Subject's ID")
-    parser.add_argument("Experiment_ID", help="Please indicate the experiment")
-    parser.add_argument("--code", help="Specific experimental protocol for the session")
-    parser.add_argument("--baud",type=int, choices = [9600,14400,19200,28800,38400,57600,115200],
-                        help="Baud rate for arduino. Defaults to 115200.")
-    parser.add_argument("--save", choices=['y','n'])
-    parser.add_argument("--save_folder", help="Data storage folder. \n Defaults to '/home/pi/Documents/TreeMaze/Data/Experiment/Subject_ID/'")
-    args = parser.parse_args()
-
-    experimenter = args.Experimenter_ID
-    subj_id = args.Subject_ID
-    expt = args.Experiment_ID
-
-    # baud rate
-    global baud
-    if args.baud:
-        baud = args.baud
-    else:
-        baud = 115200
-
-    # Code
-    if args.code:
-        args.code
-    else:
-        code = 'XXXX'
-
-    ## File saving information.
-    global datFile
-    global saveFlag
-    if args.save=='y':
-        saveFlag = True
-        time_str = datetime.datetime.now().strftime('%H:%M:%S')
-        time_str2 = datetime.datetime.now().strftime('h%H_m%M')
-        date_obj = datetime.date.today()
-        date_str = "%s_%s_%s" % (date_obj.month,date_obj.day,date_obj.year)
-        if args.save_folder:
-            save_folder = args.save_folder
-        else:
-            save_folder = "/home/pi/Documents/TreeMaze/Data/%s/%s/%s/" % (expt,subj_id,date_str)
-        filename = "%s_%s_%s" % (subj_id,date_str,time_str2)
-
-        # Header
-        os.makedirs(save_folder,exist_ok=True)
-        h = open("%s%s.txt" % (save_folder,filename),'w')
-        h.write("Date: %s \n" % date_str)
-        h.write("Current Time: %s \n" % time_str)
-        h.write("Experimenter: %s \n" % experimenter)
-        h.write("Subject: %s \n" % subj_id)
-        h.write("Experiment: %s \n" % expt)
-        h.write("Baud Rate: %s \n" % baud)
-        h.write("Experiment Code: %s \n" % code)
-        h.close()
-
-        # Data file
-        datFile = open("%s%s.csv" % (save_folder,filename),'w')
-
-    else:
-        saveFlag = False
-        datFile =[]
-
-def readArduino(ArdCommInst,arduinoEv, interruptEv):
-    while True:
-        if not interruptEv.is_set():
-            # reduce cpu load by reading arduino slower
-            time.sleep(0.001)
-            data = ArdCommInst.ReadLine()
+            StateMachine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0', after_state_change='update_states')
+            MS_Trigger = []
+            # dummy first append tr
+            MS_Trigger.append(getattr(MS,'D0')
+            for gg in Goals:
+                MS_Trigger.append(getattr(MS,'D'+str(gg)))
+            MS.to_AW1()
+        if inst[:2] == 'DD':
             try:
-                if data:
-                    try:
-                        if isinstance(data,bytes):
-                            x = data.decode('utf-8')
-                            if (x[0]=='<'):
-                                if (x[1:4]=='EC_'):
-                                    code = x[4:]
-                                    print (code)
-                                    if saveFlag:
-                                        logEvent(code)
-                                else:
-                                    print (x[1:])
-                            elif (x[0]=='>'):
-                                arduinoEv.set()
-                            else:
-                                print (x)
-                        else:
-                            if data[0]=='>':
-                                arduinoEv.set()
-                            else:
-                                print (data)
-                    except:
-                        #print ("error", sys.exc_info()[0])
-                        pass
-            except:
-                #print ("error", sys.exc_info()[0])
-                pass
-        else:
-            break
+                detectNum = int(inst[2])
+                MS.detect(detectNum)
+                MS_Trigger[detectNum]()
+        if eventID[:2]=='DD':
 
-def logEvent(code):
-    datFile.write("%s,%f\n" % (code,time.time()-time_ref) )
 
-# function for sending automatic commands to arduino without comand line input.
-class ArdComm(object):
-    """Spetialized functions for arduino communication."""
-    def __init__(self):
-        global arduino
-        arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
-        arduino.reset_input_buffer()
-        arduino.reset_output_buffer()
-
-    def SendDigit(self,num):
-        # arduino reads wells zero based. adding
-        arduino.write(bytes([num+48]))
-
-    def SendChar(self,ch):
-        arduino.write(ch.encode())
-
-    def ReadLine(self):
-        data = arduino.readline()[:-2] # the last bit gets rid of the new-line chars
-        return data
-
-    def ActivateWell(self,well):
-        self.SendChar('w')
-        self.SendDigit(well)
-
-    def DeActivateWell(self,well):
-        self.SendChar('d')
-        self.SendDigit(well)
-
-    def ToggleLED(self,well):
-        self.SendChar('l')
-        self.SendDigit(well)
-
-    def ActivateCue(self,cueNum):
-        self.SendChar('c')
-        self.SendDigit(cueNum)
-
-    def DeActivateCue(self):
-        self.SendChar('y')
-
-    def ActivateAllWells(self):
-        self.SendChar('a')
-
-    def DeliverReward(self,well):
-        self.SendChar('p')
-        self.SendDigit(well)
-
-    def ChangeReward(self,well, dur):
-        self.SendChar('z')
-        self.SendDigit(well)
-        dur_str = '<'+str(dur)+'>'
-        for ch in dur_str:
-            self.SendChar(ch)
-
-    def Reset():
-        self.SendChar('r')
-
-def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
-    ArdWellInstSet = ['w','d','p','l','z'] # instructions for individual well control
-    ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
-    time.sleep(1)
-    while True:
-        if not interruptEv.is_set():
-            # wait 1 second for arduino information to come in
-            arduinoEv.wait(1)
-            try:
-                print ("Enter 'a' to activate all wells")
-                print ("Enter 'r' to reset all wells")
-                print ("Enter 's' to check status")
-                print ("Enter 'w#', to activate a well (e.g 'w1')")
-                print ("Enter 'p#', to turn on pump (e.g 'p3') ")
-                print ("Enter 'l#', to toggle LED (e.g 'l1') ")
-                print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
-                print ("Enter 'd#' to deactivate a well ('d5')")
-                print ("Enter 'c#' to turn on a cue ('c1')")
-                print ("Enter 'y' to turn off the cue")
-                print ("Enter 'q' to exit")
-                CL_in = input()
-
-                if (isinstance(CL_in,str) and len(CL_in)>0):
-                    ins = CL_in[0]
-                    # quit instruction
-                    if (ins == 'q'):
-                        print('Terminating Arduino Communication')
-                        #ArdCommInst.SendChar(ins)
-                        #time.sleep(1)
-                        interruptEv.set()
-                        close()
-                        break
-                    # global instructions: a,s,r,y
-                    elif ins in ArdGlobalInstSet:
-                        ArdCommInst.SendChar(ins)
-                    # actions on individual wells
-                    elif ins in ArdWellInstSet:
-                        try:
-                            well = int(CL_in[1])-1 # zero indexing the wells
-                            if well>=0 and well <=5:
-                                if ins=='w':
-                                    ArdCommInst.ActivateWell(well)
-                                elif ins=='d':
-                                    ArdCommInst.DeActivateWell(well)
-                                elif ins=='p':
-                                    ArdCommInst.DeliverReward(well)
-                                elif ins=='l':
-                                    ArdCommInst.ToggleLED(well)
-                                elif ins=='z':
-                                    try:
-                                        dur = int(CL_in[3:])
-                                        if dur>0 and dur<=1000:
-                                            ArdCommInst.ChangeReward(well,dur)
-                                    except:
-                                        print('Invalid duration for reward.')
-                        except:
-                            #print ("error", sys.exc_info()[0])
-                            print('Incorrect Instruction Format, Try again')
-                            pass
-
-                    # cue control
-                    elif ins=='c':
-                        try:
-                            cuenum = int(CL_in[1])
-                            if cuenum>=1 & cuenum<=6:
-                                ArdCommInst.ActivateCue(cuenum)
-                            else:
-                                print('Invalid Cue Number')
-                        except:
-                            print('Invalid Cue Number')
-                            pass
-            except:
-                print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
-            arduinoEv.clear()
-        else:
-            break
-
-def T3(object):
-    """T3 class refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
-
-    states = [State(name='AW0', on_enter=['deactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter=['deactivate_cue','next_trial'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
-    State(name='AW2',ignore_invalid_triggers=True),
-    State(name='AW34',ignore_invalid_triggers=True),
-    State(name='AW56',ignore_invalid_triggers=True)
-    ]
-
-    conditions = ['G3','G4','G5','G6','G34','G56']
-    transitions = [
-        # start/stop
-        {'trigger':'stop','source':'*','dest':'AW0'},
-        {'trigger':'start','source':'*','dest':'AW1'},
-
-        # valid transitions
-        {'trigger':'D1','source':'AW1','dest':'AW2'},
-
-        # goals on the right
-        {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'deactivate_cue'},
-        {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
-        {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
-
-        # goals on the left
-        {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':'deactivate_cue'},
-        {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
-        {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
-
-        # correct choices
-        {'trigger':'D3','source':'AW34','dest':'AW1'},
-        {'trigger':'D4','source':'AW34','dest':'AW1'},
-
-        {'trigger':'D5','source':'AW56','dest':'AW1'},
-        {'trigger':'D6','source':'AW56','dest':'AW1'},
-
-        # incorrect choices
-        {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrect'},
-        {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrect'},
-
-        {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrect'},
-        {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrect'},
-
-        # # error transitions
-        # {'trigger':'D1','source':'*','dest':'AW0','after':'error'},
-        # {'trigger':'D2','source':'*','dest':'AW0','after':'error'},
-        # {'trigger':'D3','source':'*','dest':'AW0','after':'error'},
-        # {'trigger':'D4','source':'*','dest':'AW0','after':'error'},
-        # {'trigger':'D5','source':'*','dest':'AW0','after':'error'},
-        # {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
+def MS_Setup(protocol):
+        conditions = ['G3','G4','G5','G6','G34','G56','G3456']
+        states =  [State(name='AW0', on_enter=['deactivate_cue'], ignore_invalid_triggers=True), State(name='AW1',on_enter=['deactivate_cue','next_trial'],on_exit=['activate_cue'], ignore_invalid_triggers=True), State(name='AW2',ignore_invalid_triggers=True), State(name='AW34',ignore_invalid_triggers=True), State(name='AW56',ignore_invalid_triggers=True), State(name='AW3456',ignore_invalid_triggers=True),
         ]
-
-def T4():
-        """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
-
-        states = [
-            State(name='AW0', on_enter=['inactivate_cue'], ignore_invalid_triggers=True),
-            State(name='AW1',on_enter='next_trial',on_exit=['activate_cue'], ignore_invalid_triggers=True),
-            State(name='AW2',ignore_invalid_triggers=True),
-            State(name='AW3',ignore_invalid_triggers=True),
-            State(name='AW4',ignore_invalid_triggers=True),
-            State(name='AW5',ignore_invalid_triggers=True),
-            State(name='AW6',ignore_invalid_triggers=True)
-        ]
-
-        conditions = ['G3','G4','G5','G6','G34','G56']
         transitions = [
-            # stop
-            {'trigger':'stop','source':'*','dest':'AW0'},
+        # stop trigger
+        {'trigger':'stop','source':'*','dest':'AW0'},
+        # start striger
+        {'trigger':'start','source':'*','dest':'AW1'},
+        # valid global transitions
+        {'trigger':'D1','source':'AW1','dest':'AW2'},
+        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1'},
+        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1'},
+        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1'},
+        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1'},
+        ]
 
-            # basic
-            {'trigger':'D1','source':'AW1','dest':'AW2'},
+        if protocol=='T2':
+            """T2 refers to training regime 2. In this regime the animal can obtain reward at all the goals. Note that there is only one rewarded goal location. """
+            transitions = transitions +
+                [ {'trigger':'D2','source':'AW2','dest':'AW3456', 'conditions':'G3456','after':'deactivate_cue'},]
 
-            # right goals
-            {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'inactivate_cue'},
-            {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'inactivate_cue'},
-            {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'inactivate_cue'},
+        elif protocol=='T3':
+            """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
+            transitions = transitions +
+                # goals on the right
+                [{'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
 
-            # left goals
-            {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'inactivate_cue'},
-            {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'inactivate_cue'},
+                # goals on the left
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
 
-            # go back
-            {'trigger':'D3','source':'AW3','dest':'AW1'},
-            {'trigger':'D4','source':'AW4','dest':'AW1'},
-            {'trigger':'D5','source':'AW5','dest':'AW1'},
-            {'trigger':'D6','source':'AW6','dest':'AW1'},
+                # incorrect choices
+                {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
 
-            # error transitions
-            {'trigger':'D1','source':'*','dest':'AW0','after':'error'},
-            {'trigger':'D2','source':'*','dest':'AW0','after':'error'},
-            {'trigger':'D3','source':'*','dest':'AW0','after':'error'},
-            {'trigger':'D4','source':'*','dest':'AW0','after':'error'},
-            {'trigger':'D5','source':'*','dest':'AW0','after':'error'},
-            {'trigger':'D6','source':'*','dest':'AW0','after':'error'}
-            ]
+                {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
 
-#MS = Maze()
-#machine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
+        elif protocol=='T4':
+            """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+
+            transitions = transitions +
+                [
+                # right goals
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
+
+                # left goals
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
+
+                # incorrect choices
+                {'trigger':'D3','source':'AW4','dest':'AW1','after':'incorrectT4a'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4b'},
+
+                {'trigger':'D4','source':'AW3','dest':'AW1','after':'incorrectT4a'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4b'},
+
+                {'trigger':'D5','source':'AW6','dest':'AW1','after':'incorrectT4a'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4b'},
+
+                {'trigger':'D6','source':'AW5','dest':'AW1','after':'incorrectT4a'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4b'},
+                ]
+        return conditions,states,transitions
+# MS = Maze()
+# StateMachine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
 #           after_state_change='update_states')
 
 # # list of detections

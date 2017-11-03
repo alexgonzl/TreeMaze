@@ -63,12 +63,13 @@ const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
 // LED outout pins LEDs
 const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 
+// RPGIO IR detect outputs to RPI
+const int RPGIO_IR_Detect[6] = {47,48,49,50,51,52};
+
 // Default values for pump durations
-const long Pump_ON_Default[6]   = {12, 12, 15, 15, 15, 15};
-long Pump_ON_DUR[6]    = {12, 12, 15, 15, 15, 15};
-//const long Pump_ON_Default[6]   = {15, 15, 18, 18, 18, 18};
-//long Pump_ON_DUR[6]    = {15, 15, 18, 18, 18, 18};
-// in ms (100ms=0.25ml; 40ms=0.1ml)
+const long Pump_ON_Default[6]   = {8, 10, 15, 15, 15, 15};
+long Pump_ON_DUR[6]    = {8, 10, 15, 15, 15, 15};
+
 /* **********************************
    End of Declaration of Arduino Pins
 */
@@ -89,14 +90,14 @@ const uint32_t  CUE_Colors[2] = {NP_blueviolet, NP_green, NP_white}; // array fo
 const float CUE_Freqs[3] = {1.67, 3.85, 0};
 // half cycles of CUE_Freqs in ms: HC = (1/F)/2*1000
 const long CUE_HalfCycles[3] = {300, 130, 0};
-const long CUE_IncorrectTime = 2;
+const long CUE9_TimeLimit = 20;
 
 // cue state variables
 uint32_t  ActiveCueColor = NP_off;
 float ActiveCUE_Freq = 0;
 long ActiveCUE_HalfCycle = 0;
 bool ActiveCUE_UP = false;
-int ActiveCUE_ID = -1;
+int ActiveCUE_ID = 0;
 
 // Cue timers
 unsigned long CUE_Timer;
@@ -133,35 +134,39 @@ char CD[] = "CD"; // cue off/
 // Setup
 void setup() {
   //  state variables for the wells & time references initiation
-  for (int ii = 0; ii < nWells; ii++) {
+  for (int well = 0; well < nWells; well++) {
 
-    Well_IR_State[ii] = false;
-    Well_Detect_State[ii] = false;
-    Well_LED_State[ii] = false;
-    Pump_State[ii] = false;
+    Well_IR_State[well] = false;
+    Well_Detect_State[well] = false;
+    Well_LED_State[well] = false;
+    Pump_State[well] = false;
 
-    Well_Active_TimeRef[ii] = 15000UL;
-    Well_IR_TimeRef[ii] = 15000UL;
-    PumpTimeRef[ii] = 15000UL;
-    Well_IR_RefracTimeRef[ii] = 0;
+    Well_Active_TimeRef[well] = 15000UL;
+    Well_IR_TimeRef[well] = 15000UL;
+    PumpTimeRef[well] = 15000UL;
+    Well_IR_RefracTimeRef[well] = 0;
 
-    Well_Active_Timer[ii] = 0;
-    PumpTimer[ii] = 0;
-    Well_IR_Timer[ii] = 0;
+    Well_Active_Timer[well] = 0;
+    PumpTimer[well] = 0;
+    Well_IR_Timer[well] = 0;
   }
 
   // LEDs
-  for (int ii = 0; ii < nWells; ii++) {
+  for (int well = 0; well < nWells; well++) {
     // set LED pins to outputs and to low
-    pinMode(Well_LED_Pins[ii], OUTPUT);
-    digitalWrite(Well_LED_Pins[ii], LOW);
+    pinMode(Well_LED_Pins[well], OUTPUT);
+    digitalWrite(Well_LED_Pins[well], LOW);
+
+    // RPGIO IR detect outputs
+    pinMode(RPGIO_IR_Detect[well],OUTPUT);
+    digitalWrite(RPGIO_IR_Detect[well], LOW);
 
     // IR inputs
-    pinMode(Well_IR_Pins[ii], INPUT_PULLUP);
+    pinMode(Well_IR_Pins[well], INPUT_PULLUP);
 
     // Pump outputs
-    pinMode(Pumps_Pins[ii], OUTPUT);
-    digitalWrite(Pumps_Pins[ii], HIGH);
+    pinMode(Pumps_Pins[well], OUTPUT);
+    digitalWrite(Pumps_Pins[well], HIGH);
   }
   // Attach interrupts independently
   attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[0]), IR_Detect1, CHANGE);
@@ -209,14 +214,14 @@ void loop() {
           TurnOFFPump(well);
           Serial.print("<Reward Delivered to Well # ");
           Serial.println(well + 1);
-          Serial.print(">\n");
+          Serial.print(">");
           sendEventCode(RR, well + 1);
         }
       }
     }
 
     // Process the cue if not constant.
-    if (ActiveCUE_ID >= 0 & ActiveCUE_ID <= 3) {
+    if (ActiveCUE_ID >= 1 & ActiveCUE_ID <= 4) {
       CUE_Timer = millis() - CUE_TimeRef;
       if (CUE_Timer > ActiveCUE_HalfCycle) {
         if (ActiveCUE_UP) {
@@ -230,7 +235,7 @@ void loop() {
       }
     } else if (ActiveCUE_ID==9){
       CUE_Timer = millis() - CUE_TimeRef;
-      if (CUE_Timer > CUE_IncorrectTime){
+      if (CUE_Timer > CUE9_TimeLimit){
         ActiveCUE_ID = 0;
         ChangeCueColor(NP_off);
       }
@@ -287,13 +292,15 @@ void WellDetectThrCheck(int well) {
       if (Well_IR_State[well] == true) {
 
         Well_IR_Timer[well] = millis() - Well_IR_TimeRef[well];
+        // valid Detection
         if (Well_IR_Timer[well] >= DETECT_TIME_THR) {
           Well_Detect_State[well] = true;
+          // digitalWrite(RPGIO_IR_Detect[well], !digitalRead(RPGIO_IR_Detect[well]));
           ResetDetectTimer(well);
           Well_IR_RefracTimeRef[well] = millis();
           Serial.print("<Detection on Well # ");
           Serial.println(well + 1);
-          Serial.print(">\n");
+          Serial.print(">");
           sendEventCode(DD, well + 1);
         }
       }
@@ -353,7 +360,7 @@ void ProcessInput() {
         break;
       default:
         Serial.println("<IncorrectSuffix");
-        Serial.print(">\n");
+        Serial.print(">");
         break;
     }
   }
@@ -372,13 +379,13 @@ int SerialReadNum() {
       else {
         Serial.print("<Ard. Invalid Input, expected int [0-9].");
         Serial.println(num);
-        Serial.print(">\n");
+        Serial.print(">");
         return -1;
       }
     }
   }
   Serial.println("<\nArd. Timed out to input number.");
-  Serial.print(">\n");
+  Serial.print(">");
   return -1;
 }
 
@@ -387,7 +394,7 @@ void sendEventCode(char* code, int num) {
   char str[10];
   sprintf(str, "<EC_%s%d", code, num);
   Serial.println(str);
-  Serial.println(">\n");
+  Serial.println(">");
 }
 
 /****************************************
@@ -400,10 +407,10 @@ int SelectCueOn() {
     sendEventCode(CA, cue);
     Serial.print("<Ard. Activated Cue #");
     Serial.println(cue);
-    Serial.print(">\n");
+    Serial.print(">");
   }
   else {
-    ActiveCUE_ID = -1;
+    ActiveCUE_ID = 0;
     Serial.println("<\nArd. Invalid cue number.");
     Serial.print(">\n");
   }
@@ -412,8 +419,8 @@ int SelectCueOn() {
 }
 
 void TurnCueOff() {
-  sendEventCode(CD, ActiveCUE_ID + 1);
-  SetCueParams(-1);
+  sendEventCode(CD, ActiveCUE_ID);
+  SetCueParams(0);
   CUE_TimeRef = 15000L;
   CUE_Timer   = 0;
 }
@@ -459,7 +466,7 @@ void SetCueParams(int CueNum) {
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
       break;
     default:
-      ActiveCUE_ID = -1;
+      ActiveCUE_ID = 0;
       ActiveCueColor = NP_off;
       ActiveCUE_Freq = 0;
       ActiveCUE_HalfCycle = 0;
@@ -476,7 +483,6 @@ void ChangeCueColor(uint32_t col) {
   NeoPix.show();
   CUE_TimeRef = millis();
   CUE_Timer   = 0;
-
 }
 
 /****************************************
@@ -576,19 +582,19 @@ void SetPumpDur(int well) {
       Pump_ON_DUR[well] = dur;
       Serial.print("<Changed Pump-On Duration to:");
       Serial.println(dur);
-      Serial.print(">\n");
+      Serial.print(">");
     }
     else {
       Pump_ON_DUR[well] = Pump_ON_Default[well];
       Serial.print("<Input exceeds limits. Defaulting to original:");
       Serial.println(Pump_ON_Default[well]);
-      Serial.print(">\n");
+      Serial.print(">");
     }
   }
   else {
     Pump_ON_DUR[well] = Pump_ON_Default[well];
     Serial.println("<\nTimed out to input duration well");
-    Serial.print(">\n");
+    Serial.print(">");
   }
 }
 /****************************************
@@ -605,7 +611,7 @@ int SelectWellToActive() {
   }
   else {
     Serial.println("<\nArd. Invalid well number.");
-    Serial.print(">\n");
+    Serial.print(">");
   }
   return -1;
 }
@@ -616,12 +622,12 @@ int SelectWellToDeActive() {
     DeActivateWell(well);
     Serial.print("<Deactivated Well #");
     Serial.println(well + 1);
-    Serial.print(">\n");
+    Serial.print(">");
     return well;
   }
   else {
     Serial.println("<\nArd. Invalid well number.");
-    Serial.print(">\n");
+    Serial.print(">");
   }
   return -1;
 }
@@ -690,20 +696,14 @@ void ToggleLED(){
      Print Current States
 *****************************************/
 void print_states() {
-  Serial.println("<State variables");
-  for (int ii = 0; ii < nWells; ii++) {
-    Serial.print("<States for well # ");
-    Serial.println(ii + 1);
-    Serial.print("<Well Active State = ");
-    Serial.println(Well_Active_State[ii]);
-    Serial.print("<Pump On Dur = ");
-    Serial.println(Pump_ON_DUR[ii]);
+  Serial.print("<State, LED and Pump Dur for each well: ");
+  for (int well = 0; well < nWells; well++) {
+    char str[35];
+    sprintf(str, "<%d: State=%d, LED=%d, PumpDur=%d\n",well+1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
+    Serial.println(str);
   }
-  Serial.println("<\n");
-  Serial.println("<\n");
-  if (ActiveCUE_ID >= 0) {
-    Serial.print("Active Cue = ");
-    Serial.println(ActiveCUE_ID + 1);
-  }
-  Serial.print(">\n");
+  Serial.println("<\n\n");
+  Serial.print("Active Cue = ");
+  Serial.println(ActiveCUE_ID);
+  Serial.print(">");
 }
