@@ -634,8 +634,7 @@ int SelectWellToDeActive() {
 
 void ActivateWell(int well) {
   //if (well<=1){ Well_LED_ON(well); }
-
-  Well_LED_ON(well);
+  //Well_LED_ON(well);
   Well_Active_State[well] = true;
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
