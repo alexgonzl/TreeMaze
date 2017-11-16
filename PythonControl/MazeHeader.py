@@ -14,6 +14,7 @@ from collections import Counter
 
 global MS, StateMachine
 global baud, datFile,saveFlag
+global arduino
 global PythonControlFlag
 PythonControlFlag=False
 
@@ -78,8 +79,9 @@ class TrialSeq(object):
         print(Counter(self.GoalSeq))
 
 def close():
-    if hasattr(datFile,'close'):
-        datFile.close()
+    if datFile:
+        if hasattr(datFile,'close'):
+            datFile.close()
     arduino.__exit__()
 
 def ParseArguments():
@@ -142,6 +144,8 @@ def ParseArguments():
         saveFlag = False
         datFile =[]
 
+    return baud
+
 # Main Threads:
 def readArduino(ArdCommInst,arduinoEv, interruptEv):
     while True:
@@ -187,6 +191,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
     ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
     PythonControlSet = ['T2','T3a','T3b','T4a','T4b']
     time.sleep(1)
+    PythonControlFlag=False
     while True:
         if not interruptEv.is_set():
             # wait 1 second for arduino information to come in
@@ -223,7 +228,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                             PythonControl('cue',cue=cueinput)
                             print("Cue queued for the next trial.")
 
-                    elif (CL_in=='Stop')
+                    elif (CL_in=='Stop'):
                         PythonControl('Stop')
                         # stop thhingsss
 
@@ -260,7 +265,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                                     except:
                                         print('Invalid duration for reward.')
                         except:
-                            #print ("error", sys.exc_info()[0])
+                            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
                             print('Incorrect Instruction Format, Try again')
                             pass
 
@@ -287,21 +292,20 @@ def logEvent(code):
 # function for sending automatic commands to arduino without comand line input.
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
-    def __init__(self):
-        global arduino
-        arduino = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
-        arduino.reset_input_buffer()
-        arduino.reset_output_buffer()
+    def __init__(self,baud):
+        self.ard = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
+        self.ard.reset_input_buffer()
+        self.ard.reset_output_buffer()
 
     def SendDigit(self,num):
         # arduino reads wells zero based. adding
-        arduino.write(bytes([num+48]))
+        self.ard.write(bytes([num+48]))
 
     def SendChar(self,ch):
-        arduino.write(ch.encode())
+        self.ard.write(ch.encode())
 
     def ReadLine(self):
-        data = arduino.readline()[:-2] # the last bit gets rid of the new-line chars
+        data = self.ard.readline()[:-2] # the last bit gets rid of the new-line chars
         return data
 
     def ActivateWell(self,well):
@@ -447,7 +451,7 @@ class Maze(object):
 
     def G3(self):
         if self.Act_Cue==1 or self.Act_Cue==2 or self.Act_Cue==5:
-            if self.Protocol == 'T4a' || self.Protocol == 'T4b':
+            if self.Protocol == 'T4a' or self.Protocol == 'T4b':
                 if self.PrevDetectGoalWell==3:
                     return True
             else:
@@ -456,7 +460,7 @@ class Maze(object):
 
     def G4(self):
         if self.Act_Cue==1 or self.Act_Cue==2 or self.Act_Cue==5:
-            if self.Protocol == 'T4a' || self.Protocol == 'T4b':
+            if self.Protocol == 'T4a' or self.Protocol == 'T4b':
                 if self.PrevDetectGoalWell==2:
                     return True
             else:
@@ -465,7 +469,7 @@ class Maze(object):
 
     def G5(self):
         if self.Act_Cue==3 or self.Act_Cue==4 or self.Act_Cue==6:
-            if self.Protocol == 'T4a' || self.Protocol == 'T4b':
+            if self.Protocol == 'T4a' or self.Protocol == 'T4b':
                 if self.PrevDetectGoalWell==5:
                     return True
             else:
@@ -474,7 +478,7 @@ class Maze(object):
 
     def G6(self):
         if self.Act_Cue==3 or self.Act_Cue==4 or self.Act_Cue==6:
-            if self.Protocol == 'T4a' || self.Protocol == 'T4b':
+            if self.Protocol == 'T4a' or self.Protocol == 'T4b':
                 if self.PrevDetectGoalWell==4:
                     return True
             else:
@@ -513,7 +517,7 @@ def PythonControl(inst,cue=0,protocol=[],detect=-1):
             Wells = [1,2,3,4,5,6]
             MS_Trigger = []
             # dummy first append tr
-            MS_Trigger.append(getattr(MS,'D0')
+            MS_Trigger.append(getattr(MS,'D0'))
             for well in Wells:
                 MS_Trigger.append(getattr(MS,'D'+str(well)))
 
@@ -522,21 +526,31 @@ def PythonControl(inst,cue=0,protocol=[],detect=-1):
                 MS.start()
             else:
                 print('Cannot start without a cue')
+
         if inst == 'cue' :
             if cue>0:
                 MS.Queued_Cue=cue
+
         if inst == 'DD' and detect>=0:
             try:
                 detectNum = int(inst[2])
                 if detectNum>=1 and detectNum <=6:
                     MS.detect(detectNum)
                     MS_Trigger[detectNum]()
-        elif inst == 'stop':
+            except:
+                print('Invalid Detect')
+                pass
+
+        if inst == 'stop':
             PythonControlFlag=False
             MS.stop()
             print('Automatic control disabled.')
-        elif inst[""]
-            except:
+
+        if inst[""]:
+            PythonControlFlag=False
+            MS.stop()
+            print('Unknown State. Disableling AutoControl.')
+ 
 
 def MS_Setup(protocol):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
@@ -558,10 +572,10 @@ def MS_Setup(protocol):
         {'trigger':'start','source':'*','dest':'AW1','after':'enable_cue'},
         # valid global transitions
         {'trigger':'D1','source':'AW1','dest':'AW2'},
-        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1','after':''},
-        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1','after':},
-        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1','after':},
-        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1','after':},
+        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1'},
+        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1'},
+        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1'},
+        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1'},
         ]
 
         if not (protocol in ['T2','T3a','T3b','T4a','T4b']):
@@ -570,24 +584,24 @@ def MS_Setup(protocol):
 
         if protocol=='T2':
             """T2 refers to training regime 2. In this regime the animal can obtain reward at all the goals. Note that there is only one rewarded goal location. """
-            transitions = transitions +
-                [ {'trigger':'D2','source':'AW2','dest':'AW3456', 'conditions':'G3456','after':['deactivate_cue','LED_ON']}]
+            transitions = transitions + [
+                {'trigger':'D2','source':'AW2','dest':'AW3456', 'conditions':'G3456','after':['deactivate_cue','LED_ON']}]
 
         elif protocol=='T3a':
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal well LED ON. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-            transitions = transitions +
-                # goals on the right
-                [{'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON']},
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON']},
                 {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON']},
                 {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON']},
 
-                # goals on the left
+                ## goals on the left
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON']},
                 {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON']},
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON']},
 
-                # incorrect choices
+                ## incorrect choices
                 {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
                 {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
 
@@ -597,18 +611,18 @@ def MS_Setup(protocol):
         elif protocol=='T3b':
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-            transitions = transitions +
-                # goals on the right
-                [{'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue']},
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue']},
                 {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue']},
                 {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue']},
 
-                # goals on the left
+                ## goals on the left
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue']},
                 {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue']},
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue']},
 
-                # incorrect choices
+                ## incorrect choices
                 {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
                 {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
 
@@ -618,17 +632,17 @@ def MS_Setup(protocol):
         elif protocol=='T4a':
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm with LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-            transitions = transitions +
-                [
-                # right goals
+            transitions = transitions + [
+                
+                ## right goals
                 {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
                 {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
 
-                # left goals
+                ## left goals
                 {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
 
-                # incorrect choices
+                ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
                 {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
 
@@ -641,20 +655,20 @@ def MS_Setup(protocol):
                 {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
                 {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
                 ]
+            
         elif protocol=='T4b':
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-            transitions = transitions +
-                [
-                # right goals
+            transitions = transitions + [
+                ## right goals
                 {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON']},
                 {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON']},
 
-                # left goals
+                ## left goals
                 {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON']},
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON']},
 
-                # incorrect choices
+                ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
                 {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
 

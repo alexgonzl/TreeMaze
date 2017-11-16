@@ -7,12 +7,13 @@
 
 import threading
 from MazeHeader import *
+global baud
 
 ## Input Parameters
-ParseArguments()
+baud=ParseArguments()
 
 ## Set serial comm with arduino
-Comm = ArdComm()
+Comm = ArdComm(baud)
 
 global time_ref
 time_ref = time.time()
