@@ -7,24 +7,19 @@
 
 import threading
 from MazeHeader import *
-global baud
 
-## Input Parameters
-baud=ParseArguments()
-
-## Set serial comm with arduino
+# Parse Input:
+baud,datFile=ParseArguments()
+# Set serial comm with arduino
 Comm = ArdComm(baud)
-
-global time_ref
-time_ref = time.time()
 
 # Main
 arduinoEv = threading.Event()
 interruptEv = threading.Event()
 
 # Declare threads
-readArdThr = threading.Thread(target = readArduino, args = (Comm, arduinoEv, interruptEv,))
-cmdLine = threading.Thread(target = getCmdLineInput, args = (Comm,arduinoEv,interruptEv,))
+readArdThr = threading.Thread(target = readArduino, args = (Comm,arduinoEv, interruptEv,datFile))
+cmdLine = threading.Thread(target = getCmdLineInput, args = (Comm,arduinoEv,interruptEv,datFile))
 
 try:
     # Start threads

@@ -86,7 +86,7 @@ const uint32_t  NP_off = NeoPix.Color(0, 0, 0);
 
 // Cue parameters
 const int nCues = 6;
-const uint32_t  CUE_Colors[2] = {NP_blueviolet, NP_green, NP_white}; // array for NP colors
+const uint32_t  CUE_Colors[3] = {NP_blueviolet, NP_green, NP_white}; // array for NP colors
 const float CUE_Freqs[3] = {1.67, 3.85, 0};
 // half cycles of CUE_Freqs in ms: HC = (1/F)/2*1000
 const long CUE_HalfCycles[3] = {300, 130, 0};
@@ -695,10 +695,10 @@ void ToggleLED(){
      Print Current States
 *****************************************/
 void print_states() {
-  Serial.print("<State, LED and Pump Dur for each well: ");
+  Serial.println("<State, LED and Pump Dur for each well: ");
   for (int well = 0; well < nWells; well++) {
     char str[35];
-    sprintf(str, "<%d: State=%d, LED=%d, PumpDur=%d\n",well+1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
+    sprintf(str, "<%d: State=%d, LED=%d, PumpDur=%d3\n",well+1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
     Serial.println(str);
   }
   Serial.println("<\n\n");

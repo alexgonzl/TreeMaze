@@ -12,11 +12,12 @@ from collections import Counter
 # GPIOChans = [33,35,36,37,38,40]
 # IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
 
-global MS, StateMachine
-global baud, datFile,saveFlag
-global arduino
-global PythonControlFlag
+global MS, StateMachine, PythonControlFlag
+global baud, Comm, time_ref
+
 PythonControlFlag=False
+## time reference marker
+time_ref = time.time()
 
 class TrialSeq(object):
     def __init__(self,N):
@@ -78,11 +79,11 @@ class TrialSeq(object):
         print("Trial Goal Counts: ")
         print(Counter(self.GoalSeq))
 
-def close():
+def close(Comm,datFile):
     if datFile:
         if hasattr(datFile,'close'):
             datFile.close()
-    arduino.__exit__()
+    Comm.close()
 
 def ParseArguments():
     parser = argparse.ArgumentParser()
@@ -143,16 +144,16 @@ def ParseArguments():
     else:
         saveFlag = False
         datFile =[]
-
-    return baud
+        
+    return baud,datFile
 
 # Main Threads:
-def readArduino(ArdCommInst,arduinoEv, interruptEv):
+def readArduino(Comm,arduinoEv, interruptEv,datFile=[]):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
             time.sleep(0.001)
-            data = ArdCommInst.ReadLine()
+            data = Comm.ReadLine()
             try:
                 if data:
                     try:
@@ -164,7 +165,7 @@ def readArduino(ArdCommInst,arduinoEv, interruptEv):
                                     print (code)
                                     if PythonControlFlag:
                                         detectNum = int(code[2])
-                                        PythonControl('DD',detectNum)
+                                        MS.DETECT(detectNum)
                                     if saveFlag:
                                         logEvent(code)
                                 else:
@@ -186,21 +187,24 @@ def readArduino(ArdCommInst,arduinoEv, interruptEv):
                 pass
         else:
             break
-def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
+
+def getCmdLineInput(Comm,arduinoEv,interruptEv,datFile=[]):
+    PythonControlFlag = False
     ArdWellInstSet = ['w','d','p','l','z'] # instructions for individual well control
     ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
     PythonControlSet = ['T2','T3a','T3b','T4a','T4b']
-    time.sleep(1)
-    PythonControlFlag=False
+    time.sleep(1)   
     while True:
         if not interruptEv.is_set():
             # wait 1 second for arduino information to come in
             arduinoEv.wait(0.5)
             try:
+                print()
                 print ("Enter 'Auto=T#', for automatic sequencing.")
                 print ("Enter 'Auto=C#', to queue a cue for the next trial.")
+                print ("Enter 'Auto=S', to check state machine status")
                 print ("Enter 'Stop', to stop automation of well sequencing.")
-                print()
+                print("------------------------------------------------------")
                 print ("Enter 'a','r' activate / reset all")
                 print ("Enter 's' to check status")
                 print ("Enter 'w#','d#', to activate/deactivate a well (e.g 'w1')")
@@ -213,36 +217,48 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                 if (isinstance(CL_in,str) and len(CL_in)>0):
                     if (CL_in[:4]=='Auto'):
                         if (CL_in[5:7] in PythonControlSet):
-                            PythonControlFlag=True
-                            PythonControl('setup',protocol=CL_in[5:7])
-                            try:
-                                cueinput = int(input('Enter cue to enable: '))
-                                if cueinput>=1 and cueinput<=9:
-                                    PythonControl('cue',cueinput)
-                                PythonControl('start')
-                            except:
-                                print('Unable to start automation. Talk to Alex about it.')
-                                PythonControl('stop')
-                                pass
+                            if PythonControlFlag:
+                                print("In Auto mode = ", MS.protocol)
+                                print("Stop first to change protocol")
+                            else:
+                                PythonControlFlag=True
+                                MS = Maze(Comm,protocol=CL_in[5:7])
+                                try:
+                                    time.sleep(0.2)
+                                    print('')
+                                    cueinput = int(input('Enter cue to enable: '))
+                                    if cueinput>=1 and cueinput<=9:
+                                        MS.Act_Cue = cueinput
+                                    MS.START()
+                                except:
+                                    print('Unable to start automation. Talk to Alex about it.')
+                                    print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+                                    PythonControlFlag=False
+                                    MS.STOP()
+                                    pass
                         if (CL_in[5]=='C'):
-                            PythonControl('cue',cue=cueinput)
+                            MS.Queued_Cue = cueinput
                             print("Cue queued for the next trial.")
+                        if (CL_in[5]=='S'):
+                            print("Auto Control Enabled = ", PythonControlFlag)
+                            MS.STATUS()
 
                     elif (CL_in=='Stop'):
-                        PythonControl('Stop')
-                        # stop thhingsss
+                        PythonControlFlag=False
+                        MS.STOP()
+                        # stop things
 
                     ins = CL_in[0]
                     # quit instruction
                     if (ins == 'q'):
                         print('Terminating Arduino Communication')
                         interruptEv.set()
-                        close()
+                        close(Comm,datFile)
                         break
 
                     # global instructions: a,s,r,y
                     elif ins in ArdGlobalInstSet:
-                        ArdCommInst.SendChar(ins)
+                        Comm.SendChar(ins)
 
                     # actions on individual wells
                     elif ins in ArdWellInstSet:
@@ -250,18 +266,18 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                             well = int(CL_in[1])-1 # zero indexing the wells
                             if well>=0 and well <=5:
                                 if ins=='w' and not PythonControlFlag :
-                                    ArdCommInst.ActivateWell(well)
+                                    Comm.ActivateWell(well)
                                 elif ins=='d' and not PythonControlFlag :
-                                    ArdCommInst.DeActivateWell(well)
+                                    Comm.DeActivateWell(well)
                                 elif ins=='p':
-                                    ArdCommInst.DeliverReward(well)
+                                    Comm.DeliverReward(well)
                                 elif ins=='l':
-                                    ArdCommInst.ToggleLED(well)
+                                    Comm.ToggleLED(well)
                                 elif ins=='z':
                                     try:
                                         dur = int(CL_in[3:])
                                         if dur>0 and dur<=1000:
-                                            ArdCommInst.ChangeReward(well,dur)
+                                            Comm.ChangeReward(well,dur)
                                     except:
                                         print('Invalid duration for reward.')
                         except:
@@ -274,7 +290,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
                         try:
                             cuenum = int(CL_in[1])
                             if cuenum>=1 & cuenum<=6:
-                                ArdCommInst.ActivateCue(cuenum)
+                                Comm.ActivateCue(cuenum)
                             else:
                                 print('Invalid Cue Number')
                         except:
@@ -287,6 +303,7 @@ def getCmdLineInput(ArdCommInst,arduinoEv,interruptEv):
             break
 
 def logEvent(code):
+    global datFile, time_ref
     datFile.write("%s,%f\n" % (code,time.time()-time_ref) )
 
 # function for sending automatic commands to arduino without comand line input.
@@ -297,6 +314,9 @@ class ArdComm(object):
         self.ard.reset_input_buffer()
         self.ard.reset_output_buffer()
 
+    def close(self):
+        self.ard.__exit__()
+        
     def SendDigit(self,num):
         # arduino reads wells zero based. adding
         self.ard.write(bytes([num+48]))
@@ -341,31 +361,63 @@ class ArdComm(object):
         for ch in dur_str:
             self.SendChar(ch)
 
-    def Reset():
+    def Reset(self):
         self.SendChar('r')
 
 class Maze(object):
-    nWells = 6
-    nCues = 6
-    def __init__(self, protocol):
-        self.Act_Well = np.zeros(self.nWells,dtype=bool)
-        self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
-        self.Act_Cue  = 0
-        self.Act_Cue_State = False
-        self.Queued_Cue = 0
-        self.DetectedGoalWell = -1
-        self.PrevDetectedGoalWell = -1
-        self.WellDetectSeq = []
-        self.ValidWellDetectSeq = []
-        self.Protocol = protocol
+    def __init__(self, Comm, protocol):
+        try:
+            global StateMachine
 
+            self.nWells = 6
+            self.Wells = np.arange(self.nWells)
+            self.nCues = 6
+            
+            self.Act_Well = np.zeros(self.nWells,dtype=bool)
+            self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
+            self.Act_Cue  = 0
+            self.Act_Cue_State = False
+            self.Queued_Cue = 0
+            self.DetectedGoalWell = -1
+            self.PrevDetectedGoalWell = -1
+            self.WellDetectSeq = []
+            self.ValidWellDetectSeq = []
+            self.Protocol = protocol
+            self.Comm = Comm
+
+            states,trans = MS_Setup(protocol)
+
+            StateMachine = Machine(self,states=states,transitions=trans,
+                ignore_invalid_triggers=True , initial='AW0')
+
+            self.TRIGGER = []
+            # dummy first append tr
+            self.TRIGGER.append(getattr(self,'D0'))
+            for well in (self.Wells+1):
+                self.TRIGGER.append(getattr(self,'D'+str(well)))
+
+            # reset all previous states on Arduino
+            self.Comm.Reset()
+        except:
+            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+
+    def START(self):
+        try:
+            if self.Act_Cue>0:
+                self.start()
+            else:
+                print('Cannot start without a cue')
+        except:
+            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+                                                    
     def activate_cue(self):
         # send command to activate relevant cue
         if self.Act_Cue_State:
-            ArdComm.ActivateCue(self.Act_Cue)
+            self.Comm.ActivateCue(self.Act_Cue)
     def enable_cue(self):
         # enables the use of cues
         self.Act_Cue_State = True
+        
     def disable_cue(self):
         # this function disables the use of cues, until enabling it again
         self.Act_Cue_State = False
@@ -374,25 +426,31 @@ class Maze(object):
 
     def deactivate_cue(self):
         # send command to deactivate cue, but does not disable the use of cue
-        ArdComm.DeActivateCue()
+        self.Comm.DeActivateCue()
 
     def activate_well(self,well):
-        if self.Act_Well[well]:
-          print('activated well', well+1)
-          ArdComm.ActivateWell(well)
+        try:
+            if self.Act_Well[well]:
+              print('activated well', well+1)
+              self.Comm.ActivateWell(well)
+        except:
+            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     def LED_ON(self):
-        if self.Act_Well[well]:
-          ArdComm.ToggleLED(well)
+        for well in self.Wells:
+            if self.Act_Well[well]==True:
+                self.Comm.ToggleLED(well)
 
     def deactivate_well(self,well):
         if not self.Act_Well[well]:
-          ArdComm.DeActivateWell(well)
+          self.Comm.DeActivateWell(well)
 
-    def detect(self,well):
+    def DETECT(self,well):
         #well = event.kwargs.get('well',0)
+        self.TRIGGER[well]()
         self.WellDetectSeq.append(well)
         well = well-1 # zero indexing the wells
+        
         if self.Act_Well[well]==True:
             self.Act_Well[well]=False
             self.ValidWellDetectSeq.append(well+1)
@@ -400,38 +458,43 @@ class Maze(object):
                 self.PrevDetectGoalWell = well
 
     def update_states(self):
-        state = int(self.state[2:])
-        if state==1 and self.Queued_Cue!=0:
-            if self.Queued_Cue != self.Act_Cue:
-                self.Act_Cue=self.Queued_Cue
-                self.Queued_C
+        try:
+            state = int(self.state[2:])
+            ## check for a cue change if in home well
+            if state==1 and self.Queued_Cue!=0:
+                if self.Queued_Cue != self.Act_Cue:
+                    self.Act_Cue=self.Queued_Cue
+                    self.Queued_Cue = 0
 
-        self.PrevAct_Well = np.array(self.Act_Well)
-        if (state==123456): #activate all
-            posWells=range(nWells)
-        elif (state>=1 and state<=6):
-            posWells = state-1
-        elif (state==34):
-            posWells = [2,3]
-        elif (state==56):
-            posWells = [4,5]
-        elif (state==3456):
-            posWells = [2,3,4,5]
-        else: # inactivate all
+            self.PrevAct_Well = np.array(self.Act_Well)
             posWells=[]
+            if (state==123456): #activate all
+                posWells.append(range(self.nWells))
+            elif (state>=1 and state<=6):
+                posWells.append(state-1)
+            elif (state==34):
+                posWells.append([2,3])
+            elif (state==56):
+                posWells.append([4,5])
+            elif (state==3456):
+                posWells.append([2,3,4,5])
 
-        for well in range(nWells):
-            if well in posWells:
-                self.Act_Well[well] = True
-            else:
-                self.Act_Well[well] = False
+            for well in range(self.nWells):
+                if well in posWells:
+                    self.Act_Well[well] = True
+                else:
+                    self.Act_Well[well] = False
 
-        wells2activate = np.array((self.PrevAct_Well==False and self.Act_Well==True).nonzero()).flatten()
-        wells2deactivate = np.array((self.PrevAct_Well==True and self.Act_Well==False).nonzero()).flatten()
-        for well in wells2activate:
-            self.activate_well(ii)
-        for well in wells2deactivate:
-            self.deactivate_well(ii)
+            wells2activate = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
+            wells2deactivate = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
+            print('wells to activate ', wells2activate)
+            print('wells to inactivate ', wells2deactivate)
+            for well in self.Wells[wells2activate]:
+                self.activate_well(well)
+            for well in self.Wells[wells2deactivate]:
+                self.deactivate_well(well)
+        except:
+            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     def next_trial(self):
         pass
@@ -485,11 +548,13 @@ class Maze(object):
                 return True
         return False
 
-    def stop(self):
-        self.Act_Well[:] = False
+    def STOP(self):
+        self.stop()
+        print('Automatic control disabled.')
+        self.Act_Well.fill(False)
         self.Act_Cue_State = False
         self.Act_Cue = 0
-        ArdComm.reset()
+        self.Comm.reset()
 
     def D0(self):
         pass
@@ -503,68 +568,28 @@ class Maze(object):
     def incorrectT4_arm(self):
         print('Incorrect arm. Back to home well.')
         pass
-
-def PythonControl(inst,cue=0,protocol=[],detect=-1):
-    """This function manages state transitions"""
-    if PythonControlFlag:
-        if inst == 'setup' and len(protocol)>0:
-            MS = Maze(protocol)
-            states,trans = MS_Setup(protocol)
-            StateMachine = Machine(MS,states,transitions=trans,
-            ignore_invalid_triggers=True , initial='AW0',
-            after_state_change='update_states')
-
-            Wells = [1,2,3,4,5,6]
-            MS_Trigger = []
-            # dummy first append tr
-            MS_Trigger.append(getattr(MS,'D0'))
-            for well in Wells:
-                MS_Trigger.append(getattr(MS,'D'+str(well)))
-
-        if inst == 'start':
-            if MS.Act_Cue>0:
-                MS.start()
-            else:
-                print('Cannot start without a cue')
-
-        if inst == 'cue' :
-            if cue>0:
-                MS.Queued_Cue=cue
-
-        if inst == 'DD' and detect>=0:
-            try:
-                detectNum = int(inst[2])
-                if detectNum>=1 and detectNum <=6:
-                    MS.detect(detectNum)
-                    MS_Trigger[detectNum]()
-            except:
-                print('Invalid Detect')
-                pass
-
-        if inst == 'stop':
-            PythonControlFlag=False
-            MS.stop()
-            print('Automatic control disabled.')
-
-        if inst[""]:
-            PythonControlFlag=False
-            MS.stop()
-            print('Unknown State. Disableling AutoControl.')
- 
+    def STATUS(self):
+        print('======= State Machine Status =========')
+        print('Protocol = ',self.Protocol)
+        print('Active Cue = ', self.Act_Cue)
+        print('Current State = ', self.state)
+        print('SM Act. Wells = ', self.Act_Well)
+        print('=====================================')
 
 def MS_Setup(protocol):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
-        states =  [State(name='AW0', on_enter=['disable_cue'], ignore_invalid_triggers=True),
-        State(name='AW1',on_enter=['enable_cue','next_trial','LED_ON'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
-        State(name='AW2',on_enter='LED_ON',ignore_invalid_triggers=True),
-        State(name='AW3',on_enter='LED_ON',ignore_invalid_triggers=True),
-        State(name='AW4',on_enter='LED_ON',ignore_invalid_triggers=True),
-        State(name='AW5',on_enter='LED_ON',ignore_invalid_triggers=True),
-        State(name='AW6',on_enter='LED_ON',ignore_invalid_triggers=True),
-        State(name='AW34',ignore_invalid_triggers = True),
-        State(name='AW56',ignore_invalid_triggers=True),
-        State(name='AW3456',ignore_invalid_triggers=True),
-        ]
+        states =  [
+            State(name='AW0', on_enter=['disable_cue','update_states'], ignore_invalid_triggers=True),
+            State(name='AW1',on_enter=['update_states','enable_cue','next_trial','LED_ON'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
+            State(name='AW2',on_enter=['update_states','LED_ON'],ignore_invalid_triggers=True),
+            State(name='AW3',on_enter='update_states',ignore_invalid_triggers=True),
+            State(name='AW4',on_enter='update_states',ignore_invalid_triggers=True),
+            State(name='AW5',on_enter='update_states',ignore_invalid_triggers=True),
+            State(name='AW6',on_enter='update_states',ignore_invalid_triggers=True),
+            State(name='AW34',on_enter='update_states',ignore_invalid_triggers = True),
+            State(name='AW56',on_enter='update_states',ignore_invalid_triggers=True),
+            State(name='AW3456',on_enter='update_states',ignore_invalid_triggers=True),
+            ]
         transitions = [
         # stop trigger
         {'trigger':'stop','source':'*','dest':'AW0','after':'disable_cue'},
@@ -576,6 +601,8 @@ def MS_Setup(protocol):
         {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1'},
         {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1'},
         {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1'},
+        # dummy transition
+        {'trigger':'D0','source':'*','dest':'='}  
         ]
 
         if not (protocol in ['T2','T3a','T3b','T4a','T4b']):
@@ -683,6 +710,7 @@ def MS_Setup(protocol):
                 ]
 
         return states,transitions
+
 # MS = Maze()
 # StateMachine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
 #           after_state_change='update_states')
