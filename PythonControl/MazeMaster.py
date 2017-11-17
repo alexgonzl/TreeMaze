@@ -7,19 +7,29 @@
 
 import threading
 from MazeHeader import *
+PythonControlSet = ['T2','T3a','T3b','T4a','T4b']
 
 # Parse Input:
-baud,datFile=ParseArguments()
+baud,datFile,expt =ParseArguments()
 # Set serial comm with arduino
 Comm = ArdComm(baud)
+
+# Creat Maze object
+if expt in PythonControlSet:
+    MS = Maze(Comm,expt)
+else:
+    MS = Maze(Comm)
+
+# leave some time
+time.sleep(0.2)
 
 # Main
 arduinoEv = threading.Event()
 interruptEv = threading.Event()
 
 # Declare threads
-readArdThr = threading.Thread(target = readArduino, args = (Comm,arduinoEv, interruptEv,datFile))
-cmdLine = threading.Thread(target = getCmdLineInput, args = (Comm,arduinoEv,interruptEv,datFile))
+readArdThr = threading.Thread(target = readArduino, args = (MS,arduinoEv, interruptEv))
+cmdLine = threading.Thread(target = getCmdLineInput, args = MS,arduinoEv,interruptEv))
 
 try:
     # Start threads
@@ -28,7 +38,7 @@ try:
 
 except KeyboardInterrupt:
     print ("Keyboard Interrupt. Arduino Comm closed.")
-    close()
+    close(MS)
     interruptEv.set()
     readArdThr.join()
     cmdLine.join()
@@ -36,7 +46,7 @@ except KeyboardInterrupt:
 
 except:
     print ("error", sys.exc_info()[0])
-    close()
+    close(MS)
     interruptEv.set()
     readArdThr.join()
     cmdLine.join()
