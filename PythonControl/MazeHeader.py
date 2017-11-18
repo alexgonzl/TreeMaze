@@ -219,16 +219,16 @@ def getCmdLineInput(MS,arduinoEv,interruptEv):
                             print('Unable to start automation. Talk to Alex about it.')
                             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
                             MS.STOP()
+                    
 
-                        if MS.PythonControlFlag:
+                        if MS.PythonControlFlag and len(CL_in)>4:
                             if (CL_in[5]=='C'):
                                 MS.Queued_Cue = cueinput
                                 print("Cue queued for the next trial.")
                             if (CL_in[5]=='S'):
                                 print("Auto Control Enabled = ", MS.PythonControlFlag)
                                 MS.STATUS()
-                        else:
-                            print("Auto Control Not Enabled")
+                            
 
                     elif (CL_in=='Stop'):
                         if MS.PythonControlFlag:
@@ -453,21 +453,26 @@ class Maze(object):
             elif (state==3456):
                 posWells.append([2,3,4,5])
 
-            for well in range(self.nWells):
+            for well in self.Wells:
                 if well in posWells:
                     self.Act_Well[well] = True
                 else:
                     self.Act_Well[well] = False
 
-            wells2activate = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
-            wells2deactivate = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
+            temp = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
+            wells2activate = self.Wells[temp]
+            temp = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
+            wells2deactivate = self.Wells[temp]
             print('wells to activate ', wells2activate)
             print('wells to inactivate ', wells2deactivate)
-            for well in self.Wells[wells2activate]:
-                self.activate_well(well)
-            for well in self.Wells[wells2deactivate]:
-                self.deactivate_well(well)
+            if len(wells2activate)>0:
+                for well in wells2activate:
+                    self.activate_well(well)
+            if len(wells2deactivate)>0:
+                for well in wells2deactivate:
+                    self.deactivate_well(well)
         except:
+            print ('here')
             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     ############################################################################
@@ -483,6 +488,7 @@ class Maze(object):
         self.Act_Cue_State = False
         self.Act_Cue = 0
         self.deactivate_cue()
+
     def activate_cue(self):
         # send command to activate relevant cue
         if self.Act_Cue_State:
@@ -503,7 +509,7 @@ class Maze(object):
 
     def LED_ON(self):
         for well in self.Wells:
-            if self.Act_Well[well]==True:
+            if self.Act_Well[well]:
                 self.Comm.ToggleLED(well)
 
     def deactivate_well(self,well):
@@ -592,9 +598,9 @@ def MS_Setup(protocol):
             ]
         transitions = [
         # stop trigger
-        {'trigger':'stop','source':'*','dest':'AW0','after':'disable_cue'},
+        {'trigger':'stop','source':'*','dest':'AW0'},
         # start striger
-        {'trigger':'start','source':'*','dest':'AW1','after':'enable_cue'},
+        {'trigger':'start','source':'*','dest':'AW1'},
         # valid global transitions
         {'trigger':'D1','source':'AW1','dest':'AW2'},
         {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1'},

@@ -29,7 +29,7 @@ interruptEv = threading.Event()
 
 # Declare threads
 readArdThr = threading.Thread(target = readArduino, args = (MS,arduinoEv, interruptEv))
-cmdLine = threading.Thread(target = getCmdLineInput, args = MS,arduinoEv,interruptEv))
+cmdLine = threading.Thread(target = getCmdLineInput, args = (MS,arduinoEv,interruptEv))
 
 try:
     # Start threads
