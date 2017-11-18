@@ -9,6 +9,159 @@ import threading
 from MazeHeader import *
 PythonControlSet = ['T2','T3a','T3b','T4a','T4b']
 
+# Main Threads:
+def readArduino(arduinoEv, interruptEv):
+    global MS
+    while True:
+        if not interruptEv.is_set():
+            # reduce cpu load by reading arduino slower
+            time.sleep(0.001)
+            data = MS.Comm.ReadLine()
+            try:
+                if data:
+                    try:
+                        if isinstance(data,bytes):
+                            x = data.decode('utf-8')
+                            if (x[0]=='<'):
+                                if (x[1:4]=='EC_'):
+                                    code = x[4:]
+                                    print (code)
+                                    if PythonControlFlag:
+                                        detectNum = int(code[2])
+                                        MS.DETECT(detectNum)
+                                    if saveFlag:
+                                        logEvent(code,MS)
+                                else:
+                                    print (x[1:])
+                            elif (x[0]=='>'):
+                                arduinoEv.set()
+                            else:
+                                print (x)
+                        else:
+                            if data[0]=='>':
+                                arduinoEv.set()
+                            else:
+                                print (data)
+                    except:
+                        #print ("error", sys.exc_info()[0])
+                        pass
+            except:
+                #print ("error", sys.exc_info()[0])
+                pass
+        else:
+            break
+
+def getCmdLineInput(arduinoEv,interruptEv):
+    global MS
+    ArdWellInstSet = ['w','d','p','l','z'] # instructions for individual well control
+    ArdGlobalInstSet = ['a','s','r','y'] # instructions for global changes
+
+    time.sleep(1)
+    while True:
+        if not interruptEv.is_set():
+            # wait 1 second for arduino information to come in
+            arduinoEv.wait(0.5)
+            try:
+                print()
+                print ("Enter 'Auto', to start automatic goal sequencing.")
+                print ("Enter 'Auto=C#', to queue a cue for the next trial.")
+                print ("Enter 'Auto=S', to check state machine status")
+                print ("Enter 'Stop', to stop automation of well sequencing.")
+                print("------------------------------------------------------")
+                print ("Enter 'a','r' activate / reset all")
+                print ("Enter 's' to check status")
+                print ("Enter 'w#','d#', to activate/deactivate a well (e.g 'w1')")
+                print ("Enter 'p#', to turn on pump (e.g 'p3') ")
+                print ("Enter 'l#', to toggle LED (e.g 'l1') ")
+                print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
+                print ("Enter 'c#','y' to turn on/off cues ('c1')")
+                print ("Enter 'q' to exit")
+                CL_in = input()
+                if (isinstance(CL_in,str) and len(CL_in)>0):
+                    if (CL_in[:4]=='Auto'):
+                        try:
+                            if not MS.PythonControlFlag:
+                                print('')
+                                cueinput = int(input('Enter cue to enable: '))
+                                if cueinput>=1 and cueinput<=9:
+                                    MS.Act_Cue = cueinput
+                                MS.START()
+                        except:
+                            print('Unable to start automation. Talk to Alex about it.')
+                            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+                            MS.STOP()
+
+
+                        if MS.PythonControlFlag and len(CL_in)>4:
+                            if (CL_in[5]=='C'):
+                                MS.Queued_Cue = cueinput
+                                print("Cue queued for the next trial.")
+                            if (CL_in[5]=='S'):
+                                print("Auto Control Enabled = ", MS.PythonControlFlag)
+                                MS.STATUS()
+
+                    elif (CL_in=='Stop'):
+                        if MS.PythonControlFlag:
+                            MS.STOP()
+                        else:
+                            print("Auto Control Not Enabled")
+                        # stop things
+
+                    # individual instructions
+                    ins = CL_in[0]
+                    # quit instruction
+                    if (ins == 'q'):
+                        print('Terminating Arduino Communication')
+                        interruptEv.set()
+                        close(MS)
+                        break
+
+                    # global instructions: a,s,r,y
+                    elif ins in ArdGlobalInstSet:
+                        MS.Comm.SendChar(ins)
+
+                    # actions on individual wells
+                    elif ins in ArdWellInstSet:
+                        try:
+                            well = int(CL_in[1])-1 # zero indexing the wells
+                            if well>=0 and well <=5:
+                                if ins=='w' and not MS.PythonControlFlag :
+                                    MS.Comm.ActivateWell(well)
+                                elif ins=='d' and not MS.PythonControlFlag :
+                                    MS.Comm.DeActivateWell(well)
+                                elif ins=='p':
+                                    MS.Comm.DeliverReward(well)
+                                elif ins=='l':
+                                    MS.Comm.ToggleLED(well)
+                                elif ins=='z':
+                                    try:
+                                        dur = int(CL_in[3:])
+                                        if dur>0 and dur<=1000:
+                                            MS.Comm.ChangeReward(well,dur)
+                                    except:
+                                        print('Invalid duration for reward.')
+                        except:
+                            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+                            print('Incorrect Instruction Format, Try again')
+                            pass
+
+                    # cue control
+                    elif ins=='c' and not MS.PythonControlFlag :
+                        try:
+                            cuenum = int(CL_in[1])
+                            if cuenum>=1 & cuenum<=6:
+                                MS.Comm.ActivateCue(cuenum)
+                            else:
+                                print('Invalid Cue Number')
+                        except:
+                            print('Invalid Cue Number')
+                            pass
+            except:
+                print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+            arduinoEv.clear()
+        else:
+            break
+
 # Parse Input:
 baud,datFile,expt =ParseArguments()
 # Set serial comm with arduino
@@ -28,8 +181,8 @@ arduinoEv = threading.Event()
 interruptEv = threading.Event()
 
 # Declare threads
-readArdThr = threading.Thread(target = readArduino, args = (MS,arduinoEv, interruptEv))
-cmdLine = threading.Thread(target = getCmdLineInput, args = (MS,arduinoEv,interruptEv))
+readArdThr = threading.Thread(target = readArduino, args = (arduinoEv, interruptEv))
+cmdLine = threading.Thread(target = getCmdLineInput, args = (arduinoEv,interruptEv))
 
 try:
     # Start threads
