@@ -23,14 +23,17 @@ def readArduino(arduinoEv, interruptEv):
                         if isinstance(data,bytes):
                             x = data.decode('utf-8')
                             if (x[0]=='<'):
-                                if (x[1:4]=='EC_'):
-                                    code = x[4:]
-                                    print (code)
-                                    if PythonControlFlag:
-                                        detectNum = int(code[2])
-                                        MS.DETECT(detectNum)
-                                    if saveFlag:
-                                        logEvent(code,MS)
+                                if (x[1:4]=="EC_"):
+                                    try:
+                                        code = x[4:]
+                                        if MS.PythonControlFlag and code[0:2]=="DE":
+                                            detectNum = int(code[2])
+                                            MS.DETECT(detectNum)
+                                            print (code)
+                                        if MS.saveFlag:
+                                            logEvent(code,MS)
+                                    except:
+                                        print ("error", sys.exc_info()[0])
                                 else:
                                     print (x[1:])
                             elif (x[0]=='>'):
@@ -41,7 +44,8 @@ def readArduino(arduinoEv, interruptEv):
                             if data[0]=='>':
                                 arduinoEv.set()
                             else:
-                                print (data)
+                                pass
+                                #print (data)
                     except:
                         #print ("error", sys.exc_info()[0])
                         pass
@@ -79,26 +83,45 @@ def getCmdLineInput(arduinoEv,interruptEv):
                 CL_in = input()
                 if (isinstance(CL_in,str) and len(CL_in)>0):
                     if (CL_in[:4]=='Auto'):
-                        try:
-                            if not MS.PythonControlFlag:
-                                print('')
-                                cueinput = int(input('Enter cue to enable: '))
-                                if cueinput>=1 and cueinput<=9:
-                                    MS.Act_Cue = cueinput
+                        if not MS.PythonControlFlag:
+                            try:
+                                while True:
+                                    print('')
+                                    if MS.Protocol in {'T3a','T3b'}:
+                                        cueinput = int(input('Enter cue to enable [5,6]: '))
+                                        if cueinput in [5,6]:
+                                            MS.Act_Cue = cueinput
+                                            break
+                                        else:
+                                            print("Invalid Cue")
+                                    elif MS.Protocol in {'T4a','T4b'}:
+                                        cueinput = int(input('Enter cue to enable [1,3]: '))
+                                        if cueinput in [1,3]:
+                                            MS.Act_Cue = cueinput
+                                            break
+                                        else:
+                                            print("Invalid Cue")
+                                    elif MS.Protocol in {'T2'}:
+                                       cueinput = 0
+                                       break
+                                       
+                                    if cueinput>=1 and cueinput<=9:
+                                        MS.Act_Cue = cueinput
                                 MS.START()
-                        except:
-                            print('Unable to start automation. Talk to Alex about it.')
-                            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
-                            MS.STOP()
+                            except:
+                                print('Unable to start automation. Talk to Alex about it.')
+                                print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+                                MS.STOP()
 
-
-                        if MS.PythonControlFlag and len(CL_in)>4:
+                        elif MS.PythonControlFlag and len(CL_in)>4:
                             if (CL_in[5]=='C'):
-                                MS.Queued_Cue = cueinput
+                                MS.Queued_Cue = int(CL_in[6])
                                 print("Cue queued for the next trial.")
-                            if (CL_in[5]=='S'):
+                            elif (CL_in[5]=='S'):
                                 print("Auto Control Enabled = ", MS.PythonControlFlag)
                                 MS.STATUS()
+                            else:
+                                print("Unknown Command")
 
                     elif (CL_in=='Stop'):
                         if MS.PythonControlFlag:
@@ -163,13 +186,13 @@ def getCmdLineInput(arduinoEv,interruptEv):
             break
 
 # Parse Input:
-baud,datFile,expt =ParseArguments()
+baud,datFile,expt,saveFlag = ParseArguments()
 # Set serial comm with arduino
 Comm = ArdComm(baud)
 
 # Creat Maze object
 if expt in PythonControlSet:
-    MS = Maze(Comm,expt)
+    MS = Maze(Comm,protocol=expt,saveFlag=saveFlag,datFile=datFile)
 else:
     MS = Maze(Comm)
 

@@ -31,7 +31,7 @@
 */
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
 const long DETECT_TIME_THR  = 50; // in ms
-const long DETECT_REFRAC_THR = 15000; // twenty seconds before registering a second detection
+const long DETECT_REFRAC_THR = 5000; // twenty seconds before registering a second detection
 const bool Pump_ON = LOW; // LOW activates the pump
 const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
 const int nWells = 6; // number of reward wells
@@ -124,8 +124,8 @@ unsigned long PumpTimeRef[nWells];      // time ref for pump on
 unsigned long PumpTimer[nWells];        // timer for how long pump has been on
 
 // Event codes
-char RR[] = "RR"; // reward
-char DD[] = "DD"; // detection
+char RR[] = "RE"; // reward
+char DD[] = "DE"; // detection
 char AW[] = "AW"; // actived well
 char DW[] = "DW"; // deactivated well (usually after detection)
 char CA[] = "CA"; // cue on.
@@ -185,7 +185,7 @@ void setup() {
   delay(500);
   Serial.begin(BAUD_RATE);
   Serial.println("<");
-  Serial.println("<Initiation complete. Waiting for a detection.");
+  Serial.println("<Initiation completed.");
   Serial.print(">");
 } // end setup
 
@@ -212,10 +212,10 @@ void loop() {
         PumpTimer[well] = millis() - PumpTimeRef[well];
         if (PumpTimer[well] >= Pump_ON_DUR[well]) {
           TurnOFFPump(well);
-          Serial.print("<Reward Delivered to Well # ");
-          Serial.println(well + 1);
-          Serial.print(">");
           sendEventCode(RR, well + 1);
+//          Serial.print("<Reward Delivered to Well # ");
+//          Serial.println(well + 1);
+//          Serial.println(">");   
         }
       }
     }
@@ -298,10 +298,10 @@ void WellDetectThrCheck(int well) {
           // digitalWrite(RPGIO_IR_Detect[well], !digitalRead(RPGIO_IR_Detect[well]));
           ResetDetectTimer(well);
           Well_IR_RefracTimeRef[well] = millis();
-          Serial.print("<Detection on Well # ");
-          Serial.println(well + 1);
-          Serial.print(">");
           sendEventCode(DD, well + 1);
+//          Serial.print("<Detection on Well # ");
+//          Serial.println(well + 1);
+//          Serial.println(">");        
         }
       }
     }
@@ -405,14 +405,14 @@ int SelectCueOn() {
   if (cue >= 1 && cue <= 9) {
     ActiveCUE_ID = cue;
     sendEventCode(CA, cue);
-    Serial.print("<Ard. Activated Cue #");
-    Serial.println(cue);
-    Serial.print(">");
+//    Serial.print("<Ard. Activated Cue #");
+//    Serial.println(cue);
+//    Serial.print(">");
   }
   else {
     ActiveCUE_ID = 0;
-    Serial.println("<\nArd. Invalid cue number.");
-    Serial.print(">\n");
+//    Serial.println("<\nArd. Invalid cue number.");
+//    Serial.print(">\n");
   }
   SetCueParams(ActiveCUE_ID);
   return ActiveCUE_ID;
@@ -492,9 +492,9 @@ int SelectPumpToTurnOn() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
-    Serial.print("<Pump Activated #");
-    Serial.println(well + 1);
-    Serial.print(">\n");
+//    Serial.print("<Pump Activated #");
+//    Serial.println(well + 1);
+//    Serial.print(">\n");
     return well;
   }
   else {
@@ -506,8 +506,8 @@ int SelectPumpToTurnOn() {
 
 void Deliver_Reward(int well) {
   TurnOnPump(well);
-  Serial.println("<Delivering Reward");
-  Serial.print(">\n");
+//  Serial.println("<Delivering Reward");
+//  Serial.println(">");
 }
 
 void TurnOnPump(int well) {
@@ -604,9 +604,9 @@ int SelectWellToActive() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
-    Serial.print("<Activated Well #");
-    Serial.println(well + 1);
-    Serial.print(">\n");
+//    Serial.print("<Activated Well #");
+//    Serial.println(well + 1);
+//    Serial.println(">");
     return well;
   }
   else {
@@ -620,20 +620,20 @@ int SelectWellToDeActive() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
-    Serial.print("<Deactivated Well #");
-    Serial.println(well + 1);
-    Serial.print(">");
+//    Serial.print("<Deactivated Well #");
+//    Serial.println(well + 1);
+//    Serial.println(">");
     return well;
   }
   else {
     Serial.println("<\nArd. Invalid well number.");
-    Serial.print(">");
+    Serial.println(">");
   }
   return -1;
 }
 
 void ActivateWell(int well) {
-  if (well<=1){ Well_LED_ON(well); }
+  //if (well<=1){ Well_LED_ON(well); }
   //Well_LED_ON(well);
   Well_Active_State[well] = true;
   Well_Active_TimeRef[well] = millis();
