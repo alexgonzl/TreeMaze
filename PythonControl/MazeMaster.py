@@ -135,9 +135,9 @@ def getCmdLineInput(arduinoEv,interruptEv):
                     # quit instruction
                     if (ins == 'q'):
                         print('Terminating Arduino Communication')
-                        interruptEv.set()
                         MS.STOP()
                         close(MS)
+                        interruptEv.set()
                         break
 
                     # global instructions: a,s,r,y

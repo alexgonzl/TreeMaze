@@ -217,8 +217,16 @@ class Maze(object):
 
             self.PythonControlFlag = False
             self.time_ref = time.time()
+            self.TrialCounter = 1
+            self.CorrecTrialFlag = False
 
             if protocol!="null":
+
+                self.RewardDurations = np.array([8,10,12,12,12,12])
+                self.NumRewardsToEachWell = np.zeros(6)
+                self.CumulativeRewardDurPerWell = np.zeros(6)
+                self.TotalRewardDur = 0
+
                 self.nWells = 6
                 self.Wells = np.arange(self.nWells)
                 self.LeftGoals = [4,5]
@@ -265,13 +273,18 @@ class Maze(object):
         self.start()
 
     def STOP(self):
+        if self.PythonControlFlag:
+            print('Automatic control disabled.')
+            print('Total Number of Trials = ', self.TrialCounter)
+            print('Total Reward Duration = ', self.TotalRewardDur)
+            print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
+
         self.PythonControlFlag=False
         self.stop()
         self.Act_Well.fill(False)
         self.Act_Cue_State = False
         self.Act_Cue = 0
         self.Comm.Reset()
-        print('Automatic control disabled.')
 
     def DETECT(self,well):
         #well = event.kwargs.get('well',0)
@@ -303,6 +316,9 @@ class Maze(object):
         print('Current State = ', self.state)
         print('SM Act. Wells = ', self.Act_Well)
         print('Previous Goal = ', self.PrevDetectedGoalWell)
+        print('Trial Number = ', self.TrialCounter)
+        print('Total Reward Dur = ', self.TotalRewardDur)
+        print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
         print('=====================================')
 
     def update_states(self):
@@ -400,14 +416,13 @@ class Maze(object):
 
     ############# State Machine Callbacks ######################################
     def next_trial(self):
-        if self.Protocol in ['T3c','T4c']:
+        self.TrialCounter +=1
+        if self.Protocol in ['T3c','T4c'] and self.CorrecTrialFlag:
             if random.random() < self.SwitchProb: ## switch cue
                 if self.Act_Cue==self.ValidCues[0]:
                     self.Act_Cue = copy.copy(self.ValidCues[1])
                 else:
                     self.Act_Cue = copy.copy(self.ValidCues[0])
-        else:
-            pass
 
     def G3456(self):
         return True
@@ -474,15 +489,49 @@ class Maze(object):
     def D0(self):
         pass
 
+    # Reward processing
+    def rewardDelivered1(self):
+        self.NumRewardsToEachWell[0]+=1
+        self.updateRewardCount()
+
+    def rewardDelivered2(self):
+        self.NumRewardsToEachWell[1]+=1
+        self.updateRewardCount()
+
+    def rewardDelivered3(self):
+        self.NumRewardsToEachWell[2]+=1
+        self.updateRewardCount()
+
+    def rewardDelivered4(self):
+        self.NumRewardsToEachWell[3]+=1
+        self.updateRewardCount()
+
+    def rewardDelivered5(self):
+        self.NumRewardsToEachWell[4]+=1
+        self.updateRewardCount()
+
+    def rewardDelivered6(self):
+        self.NumRewardsToEachWell[5]+=1
+        self.updateRewardCount()
+
+    def updateRewardCount(self):
+        self.CumulativeRewardDurPerWell = np.multiply(self.RewardDurations,self.NumRewardsToEachWell)
+        self.TotalRewardDur = np.sum(self.CumulativeRewardDurPerWell)
+
+    # Trial Processing
+    def correctTrial(self):
+        self.CorrecTrialFlag = True
     def incorrectT3(self):
+        self.CorrecTrialFlag = False
         print('Incorrect arm. Back to home well.')
-        pass
+
     def incorrectT4_goal(self):
+        self.CorrecTrialFlag = False
         print('Incorrect goal well.')
-        pass
+
     def incorrectT4_arm(self):
+        self.CorrecTrialFlag = False
         print('Incorrect arm. Back to home well.')
-        pass
 
 def MS_Setup(protocol):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
@@ -504,11 +553,11 @@ def MS_Setup(protocol):
         # start striger
         {'trigger':'start','source':'*','dest':'AW1'},
         # valid global transitions
-        {'trigger':'D1','source':'AW1','dest':'AW2'},
-        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1'},
-        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1'},
-        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1'},
-        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1'},
+        {'trigger':'D1','source':'AW1','dest':'AW2','after':'rewardDelivered1'},
+        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered3']},
+        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered4']},
+        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered5']},
+        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered6']},
         # dummy transition
         {'trigger':'D0','source':'*','dest':'='}
         ]
@@ -521,7 +570,7 @@ def MS_Setup(protocol):
         if protocol=='T2':
             """T2 refers to training regime 2. In this regime the animal can obtain reward at all the goals. Note that there is only one rewarded goal location. """
             transitions = transitions + [
-                {'trigger':'D2','source':'AW2','dest':'AW3456', 'conditions':'G3456','after':['deactivate_cue','LED_ON']}]
+                {'trigger':'D2','source':'AW2','dest':'AW3456', 'conditions':'G3456','after':['deactivate_cue','LED_ON','rewardDelivered2']}]
             ValidCues = []
 
         elif protocol=='T3a':
@@ -529,10 +578,10 @@ def MS_Setup(protocol):
 
             transitions = transitions + [
                 ## goals on the right
-                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON']},
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## goals on the left
-                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON']},
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
@@ -547,10 +596,10 @@ def MS_Setup(protocol):
 
             transitions = transitions + [
                 ## goals on the right
-                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue']},
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','rewardDelivered2']},
 
                 ## goals on the left
-                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue']},
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
@@ -564,10 +613,10 @@ def MS_Setup(protocol):
 
             transitions = transitions + [
                 ## goals on the right
-                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue']},
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','rewardDelivered2']},
 
                 ## goals on the left
-                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue']},
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
@@ -581,12 +630,12 @@ def MS_Setup(protocol):
 
             transitions = transitions + [
                 ## right goals
-                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON']},
-                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON']},
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## left goals
-                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON']},
-                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON']},
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
@@ -608,12 +657,12 @@ def MS_Setup(protocol):
             transitions = transitions + [
 
                 ## right goals
-                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
-                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
 
                 ## left goals
-                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
-                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
@@ -636,12 +685,12 @@ def MS_Setup(protocol):
             transitions = transitions + [
 
                 ## right goals
-                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':'deactivate_cue'},
-                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
 
                 ## left goals
-                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':'deactivate_cue'},
-                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':'deactivate_cue'},
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
