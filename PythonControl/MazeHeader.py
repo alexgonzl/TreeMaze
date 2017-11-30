@@ -403,7 +403,9 @@ class Maze(object):
         if self.Protocol in ['T3c','T4c']:
             if random.random() < self.SwitchProb: ## switch cue
                 if self.Act_Cue==self.ValidCues[0]:
-                    self.Act_Cue = self.ValidCues[1]
+                    self.Act_Cue = copy.copy(self.ValidCues[1])
+                else:
+                    self.Act_Cue = copy.copy(self.ValidCues[0])
         else:
             pass
 
@@ -657,7 +659,7 @@ def MS_Setup(protocol):
 
             ValidCues = [1,3]
 
-        return states,transitions
+        return states,transitions, ValidCues
 
 # MS = Maze()
 # StateMachine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',

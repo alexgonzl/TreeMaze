@@ -7,7 +7,7 @@
 
 import threading
 from MazeHeader import *
-PythonControlSet = ['T2','T3a','T3b','T4a','T4b']
+PythonControlSet = ['T2','T3a','T3b','T3c','T4a','T4b','T4c']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
@@ -87,21 +87,21 @@ def getCmdLineInput(arduinoEv,interruptEv):
                             try:
                                 while True:
                                     print('')
-                                    if MS.Protocol in {'T3a','T3b','T3c'}:
+                                    if MS.Protocol[:2] == 'T3':
                                         cueinput = int(input('Enter cue to enable [5,6]: '))
                                         if cueinput in [5,6]:
                                             MS.Act_Cue = cueinput
                                             break
                                         else:
                                             print("Invalid Cue")
-                                    elif MS.Protocol in {'T4a','T4b','T4c'}:
+                                    elif MS.Protocol[:2] == 'T4':
                                         cueinput = int(input('Enter cue to enable [1,3]: '))
                                         if cueinput in [1,3]:
                                             MS.Act_Cue = cueinput
                                             break
                                         else:
                                             print("Invalid Cue")
-                                    elif MS.Protocol in {'T2'}:
+                                    elif MS.Protocol == 'T2':
                                        cueinput = 0
                                        break
 
