@@ -67,9 +67,9 @@ def getCmdLineInput(arduinoEv,interruptEv):
             arduinoEv.wait(0.5)
             try:
                 print()
-                print ("Enter 'Auto', to start automatic goal sequencing.")
-                print ("Enter 'Auto=C#', to queue a cue for the next trial.")
-                print ("Enter 'Auto=S', to check state machine status")
+                print ("Enter 'A', to start automatic goal sequencing.")
+                print ("Enter 'A=C#', to queue a cue for the next trial.")
+                print ("Enter 'A=S', to check state machine status")
                 print ("Enter 'Stop', to stop automation of well sequencing.")
                 print("------------------------------------------------------")
                 print ("Enter 'a','r' activate / reset all")
@@ -82,19 +82,19 @@ def getCmdLineInput(arduinoEv,interruptEv):
                 print ("Enter 'q' to exit")
                 CL_in = input()
                 if (isinstance(CL_in,str) and len(CL_in)>0):
-                    if (CL_in[:4]=='Auto'):
+                    if (CL_in[0]=='A'):
                         if not MS.PythonControlFlag:
                             try:
                                 while True:
                                     print('')
-                                    if MS.Protocol in {'T3a','T3b'}:
+                                    if MS.Protocol in {'T3a','T3b','T3c'}:
                                         cueinput = int(input('Enter cue to enable [5,6]: '))
                                         if cueinput in [5,6]:
                                             MS.Act_Cue = cueinput
                                             break
                                         else:
                                             print("Invalid Cue")
-                                    elif MS.Protocol in {'T4a','T4b'}:
+                                    elif MS.Protocol in {'T4a','T4b','T4c'}:
                                         cueinput = int(input('Enter cue to enable [1,3]: '))
                                         if cueinput in [1,3]:
                                             MS.Act_Cue = cueinput
@@ -104,7 +104,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                     elif MS.Protocol in {'T2'}:
                                        cueinput = 0
                                        break
-                                       
+
                                     if cueinput>=1 and cueinput<=9:
                                         MS.Act_Cue = cueinput
                                 MS.START()
@@ -113,11 +113,11 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                 print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
                                 MS.STOP()
 
-                        elif MS.PythonControlFlag and len(CL_in)>4:
-                            if (CL_in[5]=='C'):
+                        elif MS.PythonControlFlag and len(CL_in)>1:
+                            if (CL_in[2]=='C'):
                                 MS.Queued_Cue = int(CL_in[6])
                                 print("Cue queued for the next trial.")
-                            elif (CL_in[5]=='S'):
+                            elif (CL_in[2]=='S'):
                                 print("Auto Control Enabled = ", MS.PythonControlFlag)
                                 MS.STATUS()
                             else:
@@ -136,6 +136,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                     if (ins == 'q'):
                         print('Terminating Arduino Communication')
                         interruptEv.set()
+                        MS.STOP()
                         close(MS)
                         break
 
