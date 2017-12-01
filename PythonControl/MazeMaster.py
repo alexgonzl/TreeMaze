@@ -67,9 +67,10 @@ def getCmdLineInput(arduinoEv,interruptEv):
             arduinoEv.wait(0.5)
             try:
                 print()
-                print ("Enter 'A', to start automatic goal sequencing.")
-                print ("Enter 'A=C#', to queue a cue for the next trial.")
-                print ("Enter 'A=S', to check state machine status")
+                print ("Enter 'Auto', to start automatic goal sequencing.")
+                print ("Enter 'C#', to queue a cue for the next trial.")
+                print ("Enter 'S', to check state machine status")
+                print ("Enter 'N', to start a new trial.")
                 print ("Enter 'Stop', to stop automation of well sequencing.")
                 print("------------------------------------------------------")
                 print ("Enter 'a','r' activate / reset all")
@@ -82,7 +83,8 @@ def getCmdLineInput(arduinoEv,interruptEv):
                 print ("Enter 'q' to exit")
                 CL_in = input()
                 if (isinstance(CL_in,str) and len(CL_in)>0):
-                    if (CL_in[0]=='A'):
+                    # Automation
+                    if (CL_in=='Auto'):
                         if not MS.PythonControlFlag:
                             try:
                                 while True:
@@ -113,22 +115,21 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                 print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
                                 MS.STOP()
 
-                        elif MS.PythonControlFlag and len(CL_in)>1:
-                            if (CL_in[2]=='C'):
-                                MS.Queued_Cue = int(CL_in[6])
-                                print("Cue queued for the next trial.")
-                            elif (CL_in[2]=='S'):
-                                print("Auto Control Enabled = ", MS.PythonControlFlag)
-                                MS.STATUS()
-                            else:
-                                print("Unknown Command")
-
-                    elif (CL_in=='Stop'):
-                        if MS.PythonControlFlag:
+                    # Automation Specific Commands
+                    if MS.PythonControlFlag:
+                        if (CL_in[0]=='C'):
+                            MS.Queued_Cue = int(CL_in[1])
+                            print("Cue queued for the next trial.")
+                        elif (CL_in=='S'):
+                            print("Auto Control Enabled = ", MS.PythonControlFlag)
+                            MS.STATUS()
+                        elif (CL_in=='N'):
+                            print("Starting a new trial.")
+                            MS.NEW_TRIAL()
+                        elif (CL_in=='Stop')"
                             MS.STOP()
                         else:
-                            print("Auto Control Not Enabled")
-                        # stop things
+                            print("Unknown Command")
 
                     # individual instructions
                     ins = CL_in[0]
@@ -187,13 +188,13 @@ def getCmdLineInput(arduinoEv,interruptEv):
             break
 
 # Parse Input:
-baud,datFile,expt,saveFlag = ParseArguments()
+expt, baud, headFile, datFile, saveFlag = ParseArguments()
 # Set serial comm with arduino
 Comm = ArdComm(baud)
 
 # Creat Maze object
 if expt in PythonControlSet:
-    MS = Maze(Comm,protocol=expt,saveFlag=saveFlag,datFile=datFile)
+    MS = Maze(Comm,protocol=expt,datFile=datFile,headFile=headFile,saveFlag=saveFlag)
 else:
     MS = Maze(Comm)
 
