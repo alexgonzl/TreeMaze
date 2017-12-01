@@ -126,10 +126,8 @@ def getCmdLineInput(arduinoEv,interruptEv):
                         elif (CL_in=='N'):
                             print("Starting a new trial.")
                             MS.NEW_TRIAL()
-                        elif (CL_in=='Stop')"
+                        elif (CL_in=='Stop'):
                             MS.STOP()
-                        else:
-                            print("Unknown Command")
 
                     # individual instructions
                     ins = CL_in[0]

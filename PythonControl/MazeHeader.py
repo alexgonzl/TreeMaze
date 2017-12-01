@@ -76,9 +76,6 @@ def close(MS):
     if MS.datFile:
         if hasattr(MS.datFile,'close'):
             MS.datFile.close()
-    if MS.headFile:
-        if hasattr(MS.headFile,'close'):
-            MS.headFile.close()
     MS.Comm.close()
 
 def ParseArguments():
@@ -239,18 +236,19 @@ class Maze(object):
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
                 self.SwitchProb = 0.25
+                self.SwitchFlag = False
 
                 states,trans, self.ValidCues = MS_Setup(protocol)
 
                 # Reward Tracking
-                self.DefaultRewardDurations = np.array([8,10,12,12,12,12])
-                self.RewardDurations = np.array([8,10,12,12,12,12])
+                self.DefaultRewardDurations = np.array([8,10,15,15,15,15])
+                self.RewardDurations = np.array([8,10,15,15,15,15])
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
                 self.TotalRewardDur = 0
 
                 # Trial Tracking
-                self.TrialCounter = 1
+                self.TrialCounter = 0
                 self.CorrecTrialFlag = False
                 self.NumCorrectTrials = 0
                 self.NumConsecutiveCorrectTrials = 0
@@ -311,7 +309,7 @@ class Maze(object):
             if self.Act_Well[well]==True:
                 #self.Act_Well[well]=False
                 self.ValidWellDetectSeq.append(well+1)
-                self.CorrectDetTracker[well] += 1
+                self.CorrectWellsTracker[well] += 1
                 if (well>1):
                     self.PrevDetectGoalWell = copy.copy(well)
                     if well in self.RightGoals:
@@ -325,7 +323,6 @@ class Maze(object):
 
     def NEW_TRIAL(self):
         self.CorrecTrialFlag = False
-        self.next_trial()
         self.NumConsecutiveCorrectTrials = 0
         self.start()
 
@@ -349,13 +346,13 @@ class Maze(object):
     def printSummary(self):
         self.headFile.write('\n\n====================================================\n\n')
         self.headFile.write('Session Summary:\n')
-        self.headFile.write('Session Time = %f\n', % (time.time() - self.time_ref))
-        self.headFile.write('Number of Trials = %i \n', % (self.TrialCounter))
-        self.headFile.write('Number of Correct Trials = %i \n', % (self.NumCorrectTrials))
-        self.headFile.write('Number of Switches = %i \n',  %(self.NumSwitchTrials))
-        self.headFile.write('Number of Correct Trials after a Switch = %i \n', % (self.CorrectAfterSwitch))
-        self.headFile.write('Number of Incorrect Arm Trials = %i \n', % (self.IncorrectArm))
-        self.headFile.write('Number of Incorrect Goal Trials = %i \n', % (self.IncorrectGoal))
+        self.headFile.write('Session Time = %f \n' % (time.time() - self.time_ref))
+        self.headFile.write('Number of Trials = %i \n' % (self.TrialCounter))
+        self.headFile.write('Number of Correct Trials = %i \n' % (self.NumCorrectTrials))
+        self.headFile.write('Number of Switches = %i \n'  % (self.NumSwitchTrials))
+        self.headFile.write('Number of Correct Trials after a Switch = %i \n' % (self.CorrectAfterSwitch))
+        self.headFile.write('Number of Incorrect Arm Trials = %i \n' % (self.IncorrectArm))
+        self.headFile.write('Number of Incorrect Goal Trials = %i \n' % (self.IncorrectGoal))
 
         self.headFile.write('Number of Well Detections: \n')
         self.headFile.write(", ".join(map(str,self.DetectionTracker.astype(int))))
@@ -363,7 +360,7 @@ class Maze(object):
         self.headFile.write('\nNumber of Correct Well Detections: \n')
         self.headFile.write(", ".join(map(str,self.CorrectWellsTracker.astype(int))))
 
-        self.headFile.write('\nTotal Reward Duration = %i \n', % (self.TotalRewardDur))
+        self.headFile.write('\nTotal Reward Duration = %i \n' % (self.TotalRewardDur))
         self.headFile.write('Number of Rewards Per Well:\n')
         self.headFile.write(", ".join(map(str,self.NumRewardsToEachWell.astype(int))))
 
@@ -371,6 +368,7 @@ class Maze(object):
         self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
 
         self.headFile.close()
+        
     ############# CUE Functions ################################################
     def enable_cue(self):
         # enables the use of cues
@@ -585,7 +583,7 @@ class Maze(object):
     def incorrectT4_goal(self):
         self.CorrecTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
-        self.IncorrectGoal += ``
+        self.IncorrectGoal += 1
         print('Incorrect goal well.')
 
     def incorrectT4_arm(self):
