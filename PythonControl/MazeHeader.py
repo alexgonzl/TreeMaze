@@ -222,9 +222,9 @@ class Maze(object):
                 # Settings
                 self.nWells = 6
                 self.Wells = np.arange(self.nWells)
+                self.GoalWells = [2,3,4,5]
                 self.LeftGoals = [4,5]
                 self.RightGoals = [2,3]
-                self.AllGoals = [2,3,4,5]
                 self.nCues = 6
 
                 self.Act_Well = np.zeros(self.nWells,dtype=bool)
@@ -233,6 +233,7 @@ class Maze(object):
                 self.Act_Cue_State = False
                 self.Queued_Cue = 0
                 self.DetectedGoalWell = -1
+                self.PrevDetectGoalWell = -1
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
                 self.SwitchProb = 0.25
@@ -243,13 +244,19 @@ class Maze(object):
                 # Reward Tracking
                 self.DefaultRewardDurations = np.array([8,10,15,15,15,15])
                 self.RewardDurations = np.array([8,10,15,15,15,15])
+                self.ChangeRewardDur = 8
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
                 self.TotalRewardDur = 0
+                self.ChangedRewardFlag = False
+                self.ResetRewardFlag = False
+                self.ChangedRewardWell = -1
+                self.ConsecutiveWellRewardThr = 4
 
                 # Trial Tracking
                 self.TrialCounter = 0
-                self.CorrecTrialFlag = False
+                self.CorrectTrialFlag = False
+                self.IncorrectTrialFlag = False
                 self.NumCorrectTrials = 0
                 self.NumConsecutiveCorrectTrials = 0
                 self.IncorrectArm = 0
@@ -258,7 +265,8 @@ class Maze(object):
                 self.NumSwitchTrials = 0
                 self.DetectionTracker = np.zeros(self.nWells)
                 self.CorrectWellsTracker = np.zeros(self.nWells)
-
+                self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
+                
                 StateMachine = Machine(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
 
@@ -268,7 +276,7 @@ class Maze(object):
                 for well in (self.Wells+1):
                     self.TRIGGER.append(getattr(self,'D'+str(well)))
 
-                self.PrevDetectedGoalWell = np.random.choice(self.AllGoals)
+                self.PrevDetectedGoalWell = np.random.choice(self.GoalWells)
                 self.PrevDetectedRightGoalWell = np.random.choice(self.RightGoals)
                 self.PrevDetectedLeftGoalWell = np.random.choice(self.LeftGoals)
 
@@ -306,24 +314,43 @@ class Maze(object):
             self.WellDetectSeq.append(well)
             well = well-1 # zero indexing the wells
             self.DetectionTracker[well] += 1
-            if self.Act_Well[well]==True:
-                #self.Act_Well[well]=False
+            if self.Act_Well[well] == True:
                 self.ValidWellDetectSeq.append(well+1)
                 self.CorrectWellsTracker[well] += 1
-                if (well>1):
+                # Goal Wells
+                if well in self.GoalWells:
+                    # increase counter for consecuitve correct detections on the same well
+                    self.ConsecutiveCorrectWellTracker[well] += 1
+
+                    # update goal detection trackers
+                    #print(self.RightGoals)
+                    #print(self.ConsecutiveCorrectWellTracker[self.RightGoals])
+                    #print(self.LeftGoals)
+                    #print(self.ConsecutiveCorrectWellTracker[self.LeftGoals])
                     self.PrevDetectGoalWell = copy.copy(well)
                     if well in self.RightGoals:
                         self.PrevDetectedRightGoalWell = copy.copy(well)
+                        # reset counter on right arm if detections on both wells
+                        if all(self.ConsecutiveCorrectWellTracker[self.RightGoals]>0):
+                            self.ConsecutiveCorrectWellTracker[self.RightGoals] = 0
+                            self.ResetRewardFlag = True
                     else:
                         self.PrevDetectedLeftGoalWell = copy.copy(well)
+                        # reset counter on left arm if detections on both wells
+                        if all(self.ConsecutiveCorrectWellTracker[self.LeftGoals]>0):
+                            self.ConsecutiveCorrectWellTracker[self.LeftGoals] = 0
+                            self.ResetRewardFlag = True
+
             self.TRIGGER[well+1]()
         except:
             print("Error on registering the detection")
             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     def NEW_TRIAL(self):
-        self.CorrecTrialFlag = False
+        self.CorrectTrialFlag = False
+        self.IncorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
+        self.ResetRewards()
         self.start()
 
     def STATUS(self):
@@ -343,6 +370,14 @@ class Maze(object):
 
     ############################################################################
     ############# Support Functions ############################################
+    def ResetRewards(self):
+        self.ChangeRewardFlag = False
+        self.ResetRewardFlag = False
+        self.ChangedRewardWell = -1
+        for well in self.Wells:
+            self.Comm.ChangeReward(well,self.DefaultRewardDurations[well])
+            
+        
     def printSummary(self):
         self.headFile.write('\n\n====================================================\n\n')
         self.headFile.write('Session Summary:\n')
@@ -412,15 +447,48 @@ class Maze(object):
         try:
             time.sleep(0.1)
             state = int(self.state[2:])
-            ## check for a cue change if in home well
-            if state==1 and self.Queued_Cue!=0:
-                if self.Queued_Cue in self.ValidCues:
-                    if self.Queued_Cue != self.Act_Cue:
-                        self.Act_Cue=copy.copy(self.Queued_Cue)
-                        self.Queued_Cue = 0
-                else:
-                    print ("Invalid Cue for this Protocol")
 
+            #### trial specific updates (when activating home well)
+            if state == 1:
+                self.CorrectTrialFlag = False
+                self.IncorrectTrialFlag = False
+
+                ## reset rewards duration if animal didn't repeat
+                if self.ChangedRewardFlag:
+                    # reset to reward duration to  original
+                    if self.ResetRewardFlag:
+                        self.Comm.ChangeReward(self.ChangedRewardWell,self.DefaultRewardDurations[self.ChangedRewardWell])
+                        self.ChangedRewardFlag = False
+                        self.ResetRewardFlag = False
+                        self.ChangedRewardWell = -1
+                else:
+                    # Check if too many consecutive rewards to goal wells
+                    for well in self.Wells:
+                        if self.ConsecutiveCorrectWellTracker[well] >= self.ConsecutiveWellRewardThr:
+                            self.ChangedRewardFlag = True
+                            self.ChangedRewardWell = copy.copy(well)
+                            self.Comm.ChangeReward(well,self.ChangeRewardDur)
+                            print ("More than 4 consecutive rewards to well# ", well+1)
+                            print ("Reducing reward to ", self.ChangeRewardDur)
+
+                ## check for a cue change if in home well
+                if self.Queued_Cue!=0:
+                    if not self.ChangedRewardFlag:
+                        if self.Queued_Cue in self.ValidCues:
+                            if self.Queued_Cue != self.Act_Cue:
+                                self.NumSwitchTrials +=1
+                                self.Act_Cue = copy.copy(self.Queued_Cue)
+                                self.SwitchFlag = True
+                                self.Queued_Cue = 0
+                            else:
+                                self.SwitchFlag = False
+                                self.Queued_Cue = 0
+                        else:
+                            print ("Invalid Cue for this Protocol")
+                        print ("Cue can't change until animal resets rewards")
+
+                    
+            ### activate/deactivate wells based on current state
             self.PrevAct_Well = np.array(self.Act_Well)
             posWells=[]
 
@@ -555,39 +623,49 @@ class Maze(object):
     # Trial Processing
     def next_trial(self):
         self.TrialCounter +=1
-        if self.Protocol in ['T3c','T4c'] and self.CorrecTrialFlag:
+        if self.Protocol in ['T3c','T3d','T4c','T4d'] and self.CorrectTrialFlag:
             if random.random() < self.SwitchProb: ## switch cue
-                self.NumSwitchTrials +=1
-                self.SwitchFlag = True
                 if self.Act_Cue==self.ValidCues[0]:
-                    self.Act_Cue = copy.copy(self.ValidCues[1])
+                    self.Queued_Cue = copy.copy(self.ValidCues[1])
                 else:
-                    self.Act_Cue = copy.copy(self.ValidCues[0])
+                    self.Queued_Cue = copy.copy(self.ValidCues[0])
             else:
                 self.SwitchFlag = False
 
     def correctTrial(self):
-        self.CorrecTrialFlag = True
-        self.NumCorrectTrials += 1
-        self.NumConsecutiveCorrectTrials += 1
+        if not self.IncorrectTrialFlag:
+            self.CorrecTrialFlag = True
+            self.NumCorrectTrials += 1
+            self.NumConsecutiveCorrectTrials += 1
 
-        if self.SwitchFlag:
-            self.CorrectAfterSwitch += 1
+            if self.SwitchFlag:
+                self.CorrectAfterSwitch += 1
 
     def incorrectT3(self):
         self.CorrecTrialFlag = False
+        self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Back to home well.')
 
     def incorrectT4_goal(self):
         self.CorrecTrialFlag = False
+        self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectGoal += 1
-        print('Incorrect goal well.')
+
+        # reduce reward for correct choice
+        well = int(self.state[2:])-1
+        if well>=2 and well<=5:
+            self.ChangedRewardFlag = True
+            self.ChangedRewardWell = copy.copy(well)
+            self.Comm.ChangeReward(well,self.ChangeRewardDur)
+            self.ResetRewardFlag = True # reset for next trial
+            print('Reduced Reward.')
 
     def incorrectT4_arm(self):
         self.CorrecTrialFlag = False
+        self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Back to home well.')
@@ -621,7 +699,7 @@ def MS_Setup(protocol):
         {'trigger':'D0','source':'*','dest':'='}
         ]
 
-        if not (protocol in ['T2','T3a','T3b','T3c','T4a','T4b','T4c']):
+        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T4a','T4b','T4c','T4d']):
             print('Undefined protocol. Defaulting to T2.')
             protocol = 'T2'
 
@@ -676,6 +754,23 @@ def MS_Setup(protocol):
 
                 ## goals on the left
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
+
+                ## incorrect choices
+                {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
+
+                {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
+            ValidCues = [5,6]
+        elif protocol=='T3c':
+            """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal well LED ON. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+
+                ## goals on the left
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
@@ -766,29 +861,30 @@ def MS_Setup(protocol):
                 ]
 
             ValidCues = [1,3]
+        elif protocol=='T4d':
+            """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
-        return states,transitions, ValidCues
+            transitions = transitions + [
+                ## right goals
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-# MS = Maze()
-# StateMachine = Machine(MS,states,transitions=transitions, ignore_invalid_triggers=True ,initial='AW0',
-#           after_state_change='update_states')
+                ## left goals
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-# # list of detections
-# dlist = [1,2,3,4,1,2,4,3,1,2,3,5,6]
-# goals = [1,2,3,4,5,6]
-# cuelist = [5,5,6,6,5,6]
-# detect_callback = []
-# MS.Act_Cue=5
-# for ii in goals:
-#     detect_callback.append(getattr(MS,'D'+str(ii)))
-#
-#
-# MS.to_AW1()
-# trialcount =0
-# for ii in dlist:
-#     print(MS.state)
-#     if ii==1 and MS.state==1:
-#         MS.activate_cue=cuelist(trialcount)
-#         trialcount=trialcount+1
-#     MS.detect(ii)
-#     detect_callback[ii-1]()
+                ## incorrect choices
+                {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+
+                {'trigger':'D4','source':'AW3','dest':'=','after':'incorrectT4_goal'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+
+                {'trigger':'D5','source':'AW6','dest':'=','after':'incorrectT4_goal'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+
+                {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                ]
+            ValidCues = [1,3]
+        return states, transitions, ValidCues
