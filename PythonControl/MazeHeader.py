@@ -252,7 +252,7 @@ class Maze(object):
                 self.ResetRewardFlag = False
                 self.ChangedRewardWell = -1
                 self.ConsecutiveWellRewardThr = 4
-
+                
                 # Trial Tracking
                 self.TrialCounter = 0
                 self.CorrectTrialFlag = False
@@ -267,6 +267,7 @@ class Maze(object):
                 self.CorrectWellsTracker = np.zeros(self.nWells)
                 self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
                 
+
                 StateMachine = Machine(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
 
@@ -314,6 +315,7 @@ class Maze(object):
             self.WellDetectSeq.append(well)
             well = well-1 # zero indexing the wells
             self.DetectionTracker[well] += 1
+
             if self.Act_Well[well] == True:
                 self.ValidWellDetectSeq.append(well+1)
                 self.CorrectWellsTracker[well] += 1
@@ -327,6 +329,7 @@ class Maze(object):
                     #print(self.ConsecutiveCorrectWellTracker[self.RightGoals])
                     #print(self.LeftGoals)
                     #print(self.ConsecutiveCorrectWellTracker[self.LeftGoals])
+
                     self.PrevDetectGoalWell = copy.copy(well)
                     if well in self.RightGoals:
                         self.PrevDetectedRightGoalWell = copy.copy(well)
@@ -403,7 +406,7 @@ class Maze(object):
         self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
 
         self.headFile.close()
-        
+
     ############# CUE Functions ################################################
     def enable_cue(self):
         # enables the use of cues
@@ -485,7 +488,9 @@ class Maze(object):
                                 self.Queued_Cue = 0
                         else:
                             print ("Invalid Cue for this Protocol")
+                    else:
                         print ("Cue can't change until animal resets rewards")
+                        
 
                     
             ### activate/deactivate wells based on current state
@@ -634,7 +639,7 @@ class Maze(object):
 
     def correctTrial(self):
         if not self.IncorrectTrialFlag:
-            self.CorrecTrialFlag = True
+            self.CorrectTrialFlag = True
             self.NumCorrectTrials += 1
             self.NumConsecutiveCorrectTrials += 1
 
@@ -642,14 +647,14 @@ class Maze(object):
                 self.CorrectAfterSwitch += 1
 
     def incorrectT3(self):
-        self.CorrecTrialFlag = False
         self.IncorrectTrialFlag = True
+        self.CorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Back to home well.')
 
     def incorrectT4_goal(self):
-        self.CorrecTrialFlag = False
+        self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectGoal += 1
@@ -664,7 +669,7 @@ class Maze(object):
             print('Reduced Reward.')
 
     def incorrectT4_arm(self):
-        self.CorrecTrialFlag = False
+        self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
@@ -745,6 +750,7 @@ def MS_Setup(protocol):
                 {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
                 {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
             ValidCues = [5,6]
+
         elif protocol=='T3c':
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
@@ -762,7 +768,7 @@ def MS_Setup(protocol):
                 {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
                 {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
             ValidCues = [5,6]
-        elif protocol=='T3c':
+        elif protocol=='T3d':
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal well LED ON. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
             transitions = transitions + [
@@ -883,8 +889,11 @@ def MS_Setup(protocol):
                 {'trigger':'D5','source':'AW6','dest':'=','after':'incorrectT4_goal'},
                 {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
 
+
                 {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
                 {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
                 ]
             ValidCues = [1,3]
-        return states, transitions, ValidCues
+
+        return states,transitions, ValidCues
+
