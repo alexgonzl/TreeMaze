@@ -1,8 +1,8 @@
 
 import os, sys, argparse
 import serial, datetime, time
-from transitions import Machine, State
-from transitions.extensions.states import add_state_feature, Timeout
+from transitions import Machine
+from transitions.extensions.states import add_state_features, Timeout, State
 import random, copy
 import numpy as np
 from collections import Counter
@@ -10,7 +10,7 @@ from collections import Counter
 # #gpio.setmode(gpio.BOARD)
 # GPIOChans = [33,35,36,37,38,40]
 # IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
-@add_state_feature(Timeout)
+@add_state_features(Timeout)
 class Machine2(Machine):
     pass
 
@@ -452,9 +452,9 @@ class Maze(object):
     def update_states(self):
         try:
             time.sleep(0.1)
-            if self.is_Timeout() or self.is_AW0():
+            if self.is_TimeOut() or self.is_AW0():
                 state = 0
-            else
+            else:
                 state = int(self.state[2:])
 
             #### trial specific updates (when activating home well)
@@ -680,6 +680,7 @@ class Maze(object):
         print('Incorrect arm. Time-Out.')
 
 def MS_Setup(protocol,timeoutdur):
+    try:
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
         states =  [
             State(name='AW0', on_enter=['disable_cue','update_states'], ignore_invalid_triggers=True),
@@ -692,7 +693,7 @@ def MS_Setup(protocol,timeoutdur):
             State(name='AW34',on_enter='update_states',ignore_invalid_triggers = True),
             State(name='AW56',on_enter='update_states',ignore_invalid_triggers=True),
             State(name='AW3456',on_enter='update_states',ignore_invalid_triggers=True),
-            State(name='TimeOut',ignore_invalid_triggers=True, 'timeout':timeoutdur, 'on_timeout':'start')
+            Timeout(name='TimeOut',ignore_invalid_triggers=True, timeout = timeoutdur, on_timeout = 'start')
             ]
 
         transitions = [
@@ -812,5 +813,8 @@ def MS_Setup(protocol,timeoutdur):
                 ]
 
             ValidCues = [1,3]
-
-        return states,transitions, ValidCues
+    except:
+        print("Error on defining states")
+        print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+        
+    return states,transitions, ValidCues
