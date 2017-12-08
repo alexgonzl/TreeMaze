@@ -244,7 +244,7 @@ class Maze(object):
                 # Reward Tracking
                 self.DefaultRewardDurations = np.array([8,10,15,15,15,15])
                 self.RewardDurations = np.array([8,10,15,15,15,15])
-                self.ChangeRewardDur = 8
+                self.ChangeRewardDur = 5
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
                 self.TotalRewardDur = 0
@@ -252,7 +252,7 @@ class Maze(object):
                 self.ResetRewardFlag = False
                 self.ChangedRewardWell = -1
                 self.ConsecutiveWellRewardThr = 4
-                
+
                 # Trial Tracking
                 self.TrialCounter = 0
                 self.CorrectTrialFlag = False
@@ -266,7 +266,7 @@ class Maze(object):
                 self.DetectionTracker = np.zeros(self.nWells)
                 self.CorrectWellsTracker = np.zeros(self.nWells)
                 self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
-                
+
 
                 StateMachine = Machine(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
@@ -353,6 +353,7 @@ class Maze(object):
         self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
+        self.ConsecutiveCorrectWellTracker[self.GoalWells] = 0
         self.ResetRewards()
         self.start()
 
@@ -374,13 +375,13 @@ class Maze(object):
     ############################################################################
     ############# Support Functions ############################################
     def ResetRewards(self):
-        self.ChangeRewardFlag = False
+        self.ChangedRewardFlag = False
         self.ResetRewardFlag = False
         self.ChangedRewardWell = -1
         for well in self.Wells:
             self.Comm.ChangeReward(well,self.DefaultRewardDurations[well])
-            
-        
+
+
     def printSummary(self):
         self.headFile.write('\n\n====================================================\n\n')
         self.headFile.write('Session Summary:\n')
@@ -490,9 +491,7 @@ class Maze(object):
                             print ("Invalid Cue for this Protocol")
                     else:
                         print ("Cue can't change until animal resets rewards")
-                        
 
-                    
             ### activate/deactivate wells based on current state
             self.PrevAct_Well = np.array(self.Act_Well)
             posWells=[]
@@ -651,7 +650,9 @@ class Maze(object):
         self.CorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
-        print('Incorrect arm. Back to home well.')
+        print('Incorrect arm. Time-Out')
+        time.sleep(15)
+        print('Back to home well.')
 
     def incorrectT4_goal(self):
         self.CorrectTrialFlag = False
@@ -673,7 +674,9 @@ class Maze(object):
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
-        print('Incorrect arm. Back to home well.')
+        print('Incorrect arm. Time-Out.')
+        time.sleep(10)
+        print('Back to home well.')
 
 def MS_Setup(protocol):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
@@ -726,11 +729,11 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
 
-                {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
+                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
             ValidCues = [5,6]
 
         elif protocol=='T3b':
@@ -744,11 +747,11 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
 
-                {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
+                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
             ValidCues = [5,6]
 
         elif protocol=='T3c':
@@ -762,11 +765,11 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
 
-                {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
+                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
             ValidCues = [5,6]
         elif protocol=='T3d':
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal well LED ON. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
@@ -779,11 +782,11 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','after':'incorrectT3'},
+                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
 
-                {'trigger':'D5','source':'AW34','dest':'AW1','after':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','after':'incorrectT3'}]
+                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
             ValidCues = [5,6]
         elif protocol=='T4a':
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
@@ -798,17 +801,17 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D4','source':'AW3','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D5','source':'AW6','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
                 ]
             ValidCues = [1,3]
         elif protocol=='T4b':
@@ -825,17 +828,17 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D4','source':'AW3','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D5','source':'AW6','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
                 ]
 
             ValidCues = [1,3]
@@ -853,17 +856,17 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D4','source':'AW3','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D5','source':'AW6','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
                 ]
 
             ValidCues = [1,3]
@@ -880,20 +883,19 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW4','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D4','source':'AW3','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
 
-                {'trigger':'D5','source':'AW6','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
 
 
-                {'trigger':'D6','source':'AW5','dest':'=','after':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','after':'incorrectT4_arm'},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
                 ]
             ValidCues = [1,3]
 
         return states,transitions, ValidCues
-
