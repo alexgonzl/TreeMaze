@@ -2,15 +2,17 @@
 import os, sys, argparse
 import serial, datetime, time
 from transitions import Machine, State
+from transitions.extensions.states import add_state_feature, Timeout
 import random, copy
 import numpy as np
-#from RPi.GPIO import GPIO as gpio
-# import RPi.GPIO
 from collections import Counter
 
 # #gpio.setmode(gpio.BOARD)
 # GPIOChans = [33,35,36,37,38,40]
 # IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
+@add_state_feature(Timeout)
+class Machine2(Machine):
+    pass
 
 class TrialSeq(object):
     def __init__(self,N):
@@ -237,9 +239,10 @@ class Maze(object):
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
                 self.SwitchProb = 0.25
+                self.TimeOutDuration = 15
                 self.SwitchFlag = False
 
-                states,trans, self.ValidCues = MS_Setup(protocol)
+                states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
 
                 # Reward Tracking
                 self.DefaultRewardDurations = np.array([8,10,15,15,15,15])
@@ -267,8 +270,7 @@ class Maze(object):
                 self.CorrectWellsTracker = np.zeros(self.nWells)
                 self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
 
-
-                StateMachine = Machine(self,states=states,transitions=trans,
+                StateMachine = Machine2(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
 
                 self.TRIGGER = []
@@ -450,7 +452,10 @@ class Maze(object):
     def update_states(self):
         try:
             time.sleep(0.1)
-            state = int(self.state[2:])
+            if self.is_Timeout() or self.is_AW0():
+                state = 0
+            else
+                state = int(self.state[2:])
 
             #### trial specific updates (when activating home well)
             if state == 1:
@@ -651,8 +656,6 @@ class Maze(object):
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Time-Out')
-        time.sleep(15)
-        print('Back to home well.')
 
     def incorrectT4_goal(self):
         self.CorrectTrialFlag = False
@@ -675,10 +678,8 @@ class Maze(object):
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Time-Out.')
-        time.sleep(10)
-        print('Back to home well.')
 
-def MS_Setup(protocol):
+def MS_Setup(protocol,timeoutdur):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
         states =  [
             State(name='AW0', on_enter=['disable_cue','update_states'], ignore_invalid_triggers=True),
@@ -691,7 +692,9 @@ def MS_Setup(protocol):
             State(name='AW34',on_enter='update_states',ignore_invalid_triggers = True),
             State(name='AW56',on_enter='update_states',ignore_invalid_triggers=True),
             State(name='AW3456',on_enter='update_states',ignore_invalid_triggers=True),
+            State(name='TimeOut',ignore_invalid_triggers=True, 'timeout':timeoutdur, 'on_timeout':'start')
             ]
+
         transitions = [
         # stop trigger
         {'trigger':'stop','source':'*','dest':'AW0'},
@@ -718,7 +721,7 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW3456', 'conditions':'G3456','after':['deactivate_cue','LED_ON','rewardDelivered2']}]
             ValidCues = []
 
-        elif protocol=='T3a':
+        elif protocol in ['T3a','T3d']:
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal well LED ON. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
             transitions = transitions + [
@@ -729,14 +732,14 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D3','source':'AW56','dest':'TimeOut','before':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'TimeOut','before':'incorrectT3'},
 
-                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
+                {'trigger':'D5','source':'AW34','dest':'TimeOut','before':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'TimeOut','before':'incorrectT3'}]
             ValidCues = [5,6]
 
-        elif protocol=='T3b':
+        elif protocol in ['T3b','T3c']:
             """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
             transitions = transitions + [
@@ -747,48 +750,14 @@ def MS_Setup(protocol):
                 {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
 
                 ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
+                {'trigger':'D3','source':'AW56','dest':'TimeOut','before':'incorrectT3'},
+                {'trigger':'D4','source':'AW56','dest':'TimeOut','before':'incorrectT3'},
 
-                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
+                {'trigger':'D5','source':'AW34','dest':'TimeOut','before':'incorrectT3'},
+                {'trigger':'D6','source':'AW34','dest':'TimeOut','before':'incorrectT3'}]
             ValidCues = [5,6]
 
-        elif protocol=='T3c':
-            """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
-
-            transitions = transitions + [
-                ## goals on the right
-                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','rewardDelivered2']},
-
-                ## goals on the left
-                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
-
-                ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
-
-                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
-            ValidCues = [5,6]
-        elif protocol=='T3d':
-            """T3 refers to training regime 3. In this regime the animal can obtain reward at the left or right goals depending on the cue with goal well LED ON. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
-
-            transitions = transitions + [
-                ## goals on the right
-                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-
-                ## goals on the left
-                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-
-                ## incorrect choices
-                {'trigger':'D3','source':'AW56','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D4','source':'AW56','dest':'AW1','before':'incorrectT3'},
-
-                {'trigger':'D5','source':'AW34','dest':'AW1','before':'incorrectT3'},
-                {'trigger':'D6','source':'AW34','dest':'AW1','before':'incorrectT3'}]
-            ValidCues = [5,6]
-        elif protocol=='T4a':
+        elif protocol in ['T4a','T4d']:
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
             transitions = transitions + [
@@ -802,19 +771,20 @@ def MS_Setup(protocol):
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT4_arm'},
 
                 {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT4_arm'},
 
                 {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT4_arm'},
 
                 {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT4_arm'},
                 ]
             ValidCues = [1,3]
-        elif protocol=='T4b':
+
+        elif protocol in ['T4b','T4c']:
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm with LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
             transitions = transitions + [
@@ -829,73 +799,18 @@ def MS_Setup(protocol):
 
                 ## incorrect choices
                 {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT4_arm'},
 
                 {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT4_arm'},
 
                 {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT4_arm'},
 
                 {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT4_arm'},
                 ]
 
-            ValidCues = [1,3]
-        elif protocol=='T4c':
-            """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm with LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
-
-            transitions = transitions + [
-
-                ## right goals
-                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
-                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
-
-                ## left goals
-                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
-                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
-
-                ## incorrect choices
-                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
-
-                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
-
-                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
-
-                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
-                ]
-
-            ValidCues = [1,3]
-        elif protocol=='T4d':
-            """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
-
-            transitions = transitions + [
-                ## right goals
-                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-
-                ## left goals
-                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-
-                ## incorrect choices
-                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D3','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
-
-                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D4','source':['AW5','AW6'],'dest':'AW1','before':'incorrectT4_arm'},
-
-                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D5','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
-
-
-                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT4_goal'},
-                {'trigger':'D6','source':['AW3','AW4'],'dest':'AW1','before':'incorrectT4_arm'},
-                ]
             ValidCues = [1,3]
 
         return states,transitions, ValidCues
