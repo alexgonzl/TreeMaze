@@ -247,7 +247,7 @@ class Maze(object):
                 # Reward Tracking
                 self.DefaultRewardDurations = np.array([8,10,15,15,15,15])
                 self.RewardDurations = np.array([8,10,15,15,15,15])
-                self.ChangeRewardDur = 5
+                self.ChangeRewardDur = 8
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
                 self.TotalRewardDur = 0
@@ -266,6 +266,7 @@ class Maze(object):
                 self.IncorrectGoal = 0
                 self.CorrectAfterSwitch = 0
                 self.NumSwitchTrials = 0
+                self.EarlyTrialThr = 4
                 self.DetectionTracker = np.zeros(self.nWells)
                 self.CorrectWellsTracker = np.zeros(self.nWells)
                 self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
@@ -289,6 +290,17 @@ class Maze(object):
     ############################################################################
     ############# Main Control Functions #######################################
     def START(self):
+        # start with valid cues for each protocol. Unless user input.
+        if not (MS.Act_Cue in self.ValidCues):
+            if self.protocol[:2] in ['T5']:
+                # for T5 choose the alternating cue.
+                MS.Act_Cue = self.ValidCues[0]
+            elif self.protocol ~= 'T2': # for othe protocol choose at random.
+                if random.random()<0.5:
+                    MS.Act_Cue = self.ValidCues[0]
+                else:
+                    MS.Act_Cue = self.ValidCues[1]
+
         # reset all previous states on Arduino
         self.Comm.Reset()
         time.sleep(0.2)
@@ -325,13 +337,6 @@ class Maze(object):
                 if well in self.GoalWells:
                     # increase counter for consecuitve correct detections on the same well
                     self.ConsecutiveCorrectWellTracker[well] += 1
-
-                    # update goal detection trackers
-                    #print(self.RightGoals)
-                    #print(self.ConsecutiveCorrectWellTracker[self.RightGoals])
-                    #print(self.LeftGoals)
-                    #print(self.ConsecutiveCorrectWellTracker[self.LeftGoals])
-
                     self.PrevDetectGoalWell = copy.copy(well)
                     if well in self.RightGoals:
                         self.PrevDetectedRightGoalWell = copy.copy(well)
@@ -531,6 +536,14 @@ class Maze(object):
                 for well in wells2activate:
                     self.activate_well(well)
 
+            # Turn on LED lights on special cases:
+            # another way to do this is to put a clause in the tranistion check
+            # trial number and then do LED_ON()
+            if state>=3 and state <=6:
+                # turn on lights at begining of alternation trials
+                if self.protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
+                    self.LED_ON()
+
         except:
             print ('Error updating states')
             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
@@ -641,6 +654,12 @@ class Maze(object):
             else:
                 self.SwitchFlag = False
 
+    def earlyTrials(self):
+        if self.TrialCounter<=self.EarlyTrialThr:
+            return True
+        else:
+            return False
+
     def correctTrial(self):
         if not self.IncorrectTrialFlag:
             self.CorrectTrialFlag = True
@@ -665,12 +684,15 @@ class Maze(object):
 
         # reduce reward for correct choice
         well = int(self.state[2:])-1
-        if well>=2 and well<=5:
+        if well in self.GoalWells:
             self.ChangedRewardFlag = True
             self.ChangedRewardWell = copy.copy(well)
             self.Comm.ChangeReward(well,self.ChangeRewardDur)
             self.ResetRewardFlag = True # reset for next trial
             print('Reduced Reward.')
+
+        if self.TrialCounter >=5:
+            self.LED_ON()
 
     def incorrectT4_arm(self):
         self.CorrectTrialFlag = False
@@ -693,7 +715,7 @@ def MS_Setup(protocol,timeoutdur):
             State(name='AW34',on_enter='update_states',ignore_invalid_triggers = True),
             State(name='AW56',on_enter='update_states',ignore_invalid_triggers=True),
             State(name='AW3456',on_enter='update_states',ignore_invalid_triggers=True),
-            Timeout(name='TimeOut',ignore_invalid_triggers=True, timeout = timeoutdur, on_timeout = 'start')
+            Timeout(name='TimeOut',on_enter='update_states',ignore_invalid_triggers=True, timeout = timeoutdur, on_timeout = 'start')
             ]
 
         transitions = [
@@ -714,7 +736,6 @@ def MS_Setup(protocol,timeoutdur):
         if not (protocol in ['T2','T3a','T3b','T3c','T3d','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
             print('Undefined protocol. Defaulting to T2.')
             protocol = 'T2'
-
 
         if protocol=='T2':
             """T2 refers to training regime 2. In this regime the animal can obtain reward at all the goals. Note that there is only one rewarded goal location. """
