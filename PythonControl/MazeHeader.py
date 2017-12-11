@@ -290,22 +290,25 @@ class Maze(object):
     ############################################################################
     ############# Main Control Functions #######################################
     def START(self):
-        # start with valid cues for each protocol. Unless user input.
-        if not (MS.Act_Cue in self.ValidCues):
-            if self.protocol[:2] in ['T5']:
-                # for T5 choose the alternating cue.
-                MS.Act_Cue = self.ValidCues[0]
-            elif self.protocol ~= 'T2': # for othe protocol choose at random.
-                if random.random()<0.5:
-                    MS.Act_Cue = self.ValidCues[0]
-                else:
-                    MS.Act_Cue = self.ValidCues[1]
+        try:
+           # start with valid cues for each protocol. Unless user input.
+            if not (self.Act_Cue in self.ValidCues):
+                if self.Protocol[:2] in ['T5']:
+                    # for T5 choose the alternating cue.
+                    self.Act_Cue = self.ValidCues[0]
+                elif self.Protocol != 'T2': # for othe protocol choose at random.
+                    if random.random()<0.5:
+                        self.Act_Cue = self.ValidCues[0]
+                    else:
+                        self.Act_Cue = self.ValidCues[1]
 
-        # reset all previous states on Arduino
-        self.Comm.Reset()
-        time.sleep(0.2)
-        self.PythonControlFlag = True
-        self.start()
+            # reset all previous states on Arduino
+            self.Comm.Reset()
+            time.sleep(0.2)
+            self.PythonControlFlag = True
+            self.start()
+        except:
+             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     def STOP(self):
         if self.PythonControlFlag:
@@ -541,7 +544,7 @@ class Maze(object):
             # trial number and then do LED_ON()
             if state>=3 and state <=6:
                 # turn on lights at begining of alternation trials
-                if self.protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
+                if self.Protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
                     self.LED_ON()
 
         except:
@@ -836,132 +839,130 @@ def MS_Setup(protocol,timeoutdur):
             ValidCues = [1,3]
         elif protocol == 'T5Ra':
             """ T5Ra. Combination of T4 and T3 with lights on the wells. The memory component is on the right arm, with left being foraging."""
-                transitions = transitions + [
-                    ## right  memory
-                    {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-                    {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+            transitions = transitions + [
+                ## right  memory
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                    ## left foraging w lights on
-                    {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                ## left foraging w lights on
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                    ## incorrect choices
-                    {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D3','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                ## incorrect choices
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D3','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D4','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D4','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                    {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                ]
-                ValidCues = [1,6]
-            elif protocol = 'T5Rb':
-                """ T5Rb. Same as TR5a but lights don't turn on the memory wells."""
-                    transitions = transitions + [
-                        ## right  memory
-                        {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
-                        {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
+            ]
+            ValidCues = [1,6]
+        elif protocol == 'T5Rb':
+            """ T5Rb. Same as TR5a but lights don't turn on the memory wells."""
+            transitions = transitions + [
+                ## right  memory
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
 
-                        ## left foraging w lights on
-                        {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                ## left foraging w lights on
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                        ## incorrect choices
-                        {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT5_goal'},
-                        {'trigger':'D3','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                ## incorrect choices
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D3','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                        {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT5_goal'},
-                        {'trigger':'D4','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D4','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                        {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                        {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                    ]
-                    ValidCues = [1,6]
-            elif protocol == 'T5Rc':
-                """ T5Rc. Same as TR5b but lights don't turn on the foraging wells."""
-                    transitions = transitions + [
-                        ## right  memory
-                        {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
-                        {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
+            ]
+            ValidCues = [1,6]
+        elif protocol == 'T5Rc':
+            """ T5Rc. Same as TR5b but lights don't turn on the foraging wells."""
+            transitions = transitions + [
+                ## right  memory
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
 
-                        ## left foraging w lights on
-                        {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
+                ## left foraging w lights on
+                {'trigger':'D2','source':'AW2','dest':'AW56', 'conditions':'G56','after':['deactivate_cue','rewardDelivered2']},
 
-                        ## incorrect choices
-                        {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT5_goal'},
-                        {'trigger':'D3','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                ## incorrect choices
+                {'trigger':'D3','source':'AW4','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D3','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                        {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT5_goal'},
-                        {'trigger':'D4','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D4','source':'AW3','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D4','source':['AW56'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                        {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                        {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                    ]
-                    ValidCues = [1,6]
-            elif protocol == 'T5La':
-                """ T5La. Well LEDs On. The memory component is on the LEFT arm, with right being foraging."""
-                transitions = transitions + [
-                    ## left  memory w lights
-                    {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON','rewardDelivered2']},
-                    {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT5_arm'},
+            ]
+            ValidCues = [1,6]
+        elif protocol == 'T5La':
+            """ T5La. Well LEDs On. The memory component is on the LEFT arm, with right being foraging."""
+            transitions = transitions + [
+                ## left  memory w lights
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                    ## right foraging w lights on
-                    {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                ## right foraging w lights on
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                    ## incorrect choices
-                    {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D5','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                ## incorrect choices
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D5','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D6','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D6','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                    {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                ]
-                ValidCues = [3,5]
-            elif protocol == 'T5Lb':
-                """ T5Lb. T5La but no lights on memory wells."""
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
+            ]
+            ValidCues = [3,5]
+        elif protocol == 'T5Lb':
+            """ T5Lb. T5La but no lights on memory wells."""
+            transitions = transitions + [
+                ## left  memory w lights
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
 
-                transitions = transitions + [
-                    ## left  memory w lights
-                    {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
-                    {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
+                ## right foraging w lights on
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                    ## right foraging w lights on
-                    {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                ## incorrect choices
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D5','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    ## incorrect choices
-                    {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D5','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D6','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D6','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
+            ]
+            ValidCues = [3,5]
+        elif protocol == 'T5Lc':
+            """ T5Lc. T5Lb but no lights on foraging wells."""
+            transitions = transitions + [
+                ## left  memory w lights
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
 
-                    {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                    {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                ]
-                ValidCues = [3,5]
-            elif protocol == 'T5Lc':
-                """ T5Lc. T5Lb but no lights on foraging wells."""
+                ## right foraging w lights on
+                {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
 
-                transitions = transitions + [
-                    ## left  memory w lights
-                    {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
-                    {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
+                ## incorrect choices
+                {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D5','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    ## right foraging w lights on
-                    {'trigger':'D2','source':'AW2','dest':'AW34', 'conditions':'G34','after':['deactivate_cue','LED_ON','rewardDelivered2']},
+                {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT5_goal'},
+                {'trigger':'D6','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
 
-                    ## incorrect choices
-                    {'trigger':'D5','source':'AW6','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D5','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
-
-                    {'trigger':'D6','source':'AW5','dest':'=','before':'incorrectT5_goal'},
-                    {'trigger':'D6','source':['AW34'],'dest':'TimeOut','before':'incorrectT5_arm'},
-
-                    {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                    {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
-                ]
-                ValidCues = [3,5]
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT5_arm'},
+            ]
+            ValidCues = [3,5]
     except:
         print("Error on defining states")
         print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)

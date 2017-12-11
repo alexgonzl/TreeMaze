@@ -89,23 +89,26 @@ def getCmdLineInput(arduinoEv,interruptEv):
                             try:
                                 while True:
                                     print('')
-                                    if MS.Protocol[:2] in ['T3a','T3b']:
+                                    if MS.Protocol[:3] in ['T3a','T3b']:
                                         cueinput = int(input('Enter cue to enable [5,6]: '))
                                         if cueinput in [5,6]:
                                             MS.Act_Cue = cueinput
+                                            break
                                         else:
                                             print("Invalid Cue")
-                                    elif MS.Protocol[:2] == ['T4a','T4b']:
+                                    elif MS.Protocol[:3] == ['T4a','T4b']:
                                         cueinput = int(input('Enter cue to enable [1,3]: '))
                                         if cueinput in [1,3]:
                                             MS.Act_Cue = cueinput
+                                            break
                                         else:
                                             print("Invalid Cue")
                                     else:
                                        cueinput = 0
+                                       break
 
-                                    if cueinput>=0 and cueinput<=9:
-                                        MS.Act_Cue = cueinput
+                                if cueinput>=0 and cueinput<=9:
+                                    MS.Act_Cue = cueinput
                                 MS.START()
                             except:
                                 print('Unable to start automation. Talk to Alex about it.')
