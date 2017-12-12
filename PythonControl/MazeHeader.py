@@ -137,6 +137,7 @@ def ParseArguments():
 
     else:
         saveFlag = False
+        headFile=[]
         datFile =[]
 
     return expt, baud, headFile, datFile, saveFlag
@@ -239,7 +240,7 @@ class Maze(object):
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
                 self.SwitchProb = 0.25
-                self.TimeOutDuration = 15
+                self.TimeOutDuration = 12
                 self.SwitchFlag = False
 
                 states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
@@ -306,6 +307,7 @@ class Maze(object):
             self.Comm.Reset()
             time.sleep(0.2)
             self.PythonControlFlag = True
+            self.resetRewardsDurs()
             self.start()
         except:
              print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
@@ -641,6 +643,11 @@ class Maze(object):
         self.NumRewardsToEachWell[5]+=1
         self.updateRewardCount()
 
+    def resetRewardsDurs(self):
+        for well in self.Wells:
+            self.Comm.ChangeReward(well,self.DefaultRewardDurations[well])
+                        
+            
     def updateRewardCount(self):
         self.CumulativeRewardDurPerWell = np.multiply(self.RewardDurations,self.NumRewardsToEachWell)
         self.TotalRewardDur = np.sum(self.CumulativeRewardDurPerWell)
@@ -694,7 +701,7 @@ class Maze(object):
             self.ResetRewardFlag = True # reset for next trial
             print('Reduced Reward.')
 
-        if self.TrialCounter >=5:
+        if self.TrialCounter >=5 and self.Protocol in ['T4b','T4c']:
             self.LED_ON()
 
     def incorrectT4_arm(self):
