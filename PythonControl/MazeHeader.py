@@ -78,6 +78,9 @@ def close(MS):
     if MS.datFile:
         if hasattr(MS.datFile,'close'):
             MS.datFile.close()
+    if MS.headFile:
+        if hasattr(MS.headFile,'close'):
+            MS.headFile.close()
     MS.Comm.close()
 
 def ParseArguments():
@@ -418,8 +421,6 @@ class Maze(object):
         self.headFile.write('\nTotal Reward Duration Per Well:\n')
         self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
 
-        self.headFile.close()
-
     ############# CUE Functions ################################################
     def enable_cue(self):
         # enables the use of cues
@@ -693,13 +694,13 @@ class Maze(object):
         self.IncorrectGoal += 1
 
         # reduce reward for correct choice
-        well = int(self.state[2:])-1
-        if well in self.GoalWells:
-            self.ChangedRewardFlag = True
-            self.ChangedRewardWell = copy.copy(well)
-            self.Comm.ChangeReward(well,self.ChangeRewardDur)
-            self.ResetRewardFlag = True # reset for next trial
-            print('Reduced Reward.')
+##        well = int(self.state[2:])-1
+##        if well in self.GoalWells:
+##            self.ChangedRewardFlag = True
+##            self.ChangedRewardWell = copy.copy(well)
+##            self.Comm.ChangeReward(well,self.ChangeRewardDur)
+##            self.ResetRewardFlag = True # reset for next trial
+##            print('Reduced Reward.')
 
         if self.TrialCounter >=5 and self.Protocol in ['T4b','T4c']:
             self.LED_ON()
@@ -734,11 +735,11 @@ def MS_Setup(protocol,timeoutdur):
         # start striger
         {'trigger':'start','source':'*','dest':'AW1'},
         # valid global transitions
-        {'trigger':'D1','source':'AW1','dest':'AW2','after':'rewardDelivered1'},
-        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered3']},
-        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered4']},
-        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered5']},
-        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1','after':['correctTrial','rewardDelivered6']},
+        {'trigger':'D1','source':'AW1','dest':'AW2','before':'rewardDelivered1'},
+        {'trigger':'D3','source':['AW3','AW34','AW3456'],'dest':'AW1','before':['correctTrial','rewardDelivered3']},
+        {'trigger':'D4','source':['AW4','AW34','AW3456'],'dest':'AW1','before':['correctTrial','rewardDelivered4']},
+        {'trigger':'D5','source':['AW5','AW56','AW3456'],'dest':'AW1','before':['correctTrial','rewardDelivered5']},
+        {'trigger':'D6','source':['AW6','AW56','AW3456'],'dest':'AW1','before':['correctTrial','rewardDelivered6']},
         # dummy transition
         {'trigger':'D0','source':'*','dest':'='}
         ]
