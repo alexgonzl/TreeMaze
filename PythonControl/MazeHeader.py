@@ -507,6 +507,8 @@ class Maze(object):
                             print ("Invalid Cue for this Protocol")
                     else:
                         print ("Cue can't change until animal resets rewards")
+                else:
+                    self.SwitchFlag = True
 
             ### activate/deactivate wells based on current state
             self.PrevAct_Well = np.array(self.Act_Well)
