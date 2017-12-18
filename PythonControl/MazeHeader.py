@@ -508,7 +508,7 @@ class Maze(object):
                     else:
                         print ("Cue can't change until animal resets rewards")
                 else:
-                    self.SwitchFlag = True
+                    self.SwitchFlag = False
 
             ### activate/deactivate wells based on current state
             self.PrevAct_Well = np.array(self.Act_Well)
@@ -622,6 +622,10 @@ class Maze(object):
         pass
 
     # Reward processing
+    def rewardDelivered(self,well):
+        self.NumRewardsToEachWell[well]+=1
+        self.updateRewardCount()
+
     def rewardDelivered1(self):
         self.NumRewardsToEachWell[0]+=1
         self.updateRewardCount()
@@ -649,8 +653,7 @@ class Maze(object):
     def resetRewardsDurs(self):
         for well in self.Wells:
             self.Comm.ChangeReward(well,self.DefaultRewardDurations[well])
-                        
-            
+
     def updateRewardCount(self):
         self.CumulativeRewardDurPerWell = np.multiply(self.RewardDurations,self.NumRewardsToEachWell)
         self.TotalRewardDur = np.sum(self.CumulativeRewardDurPerWell)
@@ -681,6 +684,7 @@ class Maze(object):
 
             if self.SwitchFlag:
                 self.CorrectAfterSwitch += 1
+                self.SwitchFlag= False
 
     def incorrectT3(self):
         self.IncorrectTrialFlag = True

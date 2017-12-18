@@ -154,6 +154,9 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                     MS.Comm.DeActivateWell(well)
                                 elif ins=='p':
                                     MS.Comm.DeliverReward(well)
+                                    if MS.PythonControlFlag:
+                                        MS.rewardDelivered(well)
+                                        
                                 elif ins=='l':
                                     MS.Comm.ToggleLED(well)
                                 elif ins=='z':
