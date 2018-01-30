@@ -242,16 +242,26 @@ class Maze(object):
                 self.PrevDetectGoalWell = -1
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
-                self.SwitchProb = 0.25
-                self.TimeOutDuration = 12
+                #self.SwitchProb = 0.25
+                
+                if self.Protocol[:2] in ['T3','T4','T5']:
+                    while True:
+                        temp = input('Please enter cue switch probability [0 to 100].')
+                        if int(temp)>=0 and int(temp)<=100:
+                           self.SwitchProb = float(temp)/100.0
+                           break
+                        else:
+                            print('Invalid Switch Probability')
+                    
+                self.TimeOutDuration = 5
                 self.SwitchFlag = False
 
                 states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
 
                 # Reward Tracking
-                self.DefaultRewardDurations = np.array([8,10,15,15,15,15])
-                self.RewardDurations = np.array([8,10,15,15,15,15])
-                self.ChangeRewardDur = 8
+                self.DefaultRewardDurations = np.array([6,6,10,10,10,10])
+                self.RewardDurations = np.array([6,6,10,10,10,10])
+                self.ChangeRewardDur = 6
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
                 self.TotalRewardDur = 0
@@ -398,28 +408,30 @@ class Maze(object):
 
 
     def printSummary(self):
-        self.headFile.write('\n\n====================================================\n\n')
-        self.headFile.write('Session Summary:\n')
-        self.headFile.write('Session Time = %f \n' % (time.time() - self.time_ref))
-        self.headFile.write('Number of Trials = %i \n' % (self.TrialCounter))
-        self.headFile.write('Number of Correct Trials = %i \n' % (self.NumCorrectTrials))
-        self.headFile.write('Number of Switches = %i \n'  % (self.NumSwitchTrials))
-        self.headFile.write('Number of Correct Trials after a Switch = %i \n' % (self.CorrectAfterSwitch))
-        self.headFile.write('Number of Incorrect Arm Trials = %i \n' % (self.IncorrectArm))
-        self.headFile.write('Number of Incorrect Goal Trials = %i \n' % (self.IncorrectGoal))
+        if hasattr(self.headFile,'write'):
+            self.headFile.write('Switch Probability = %i \n' % (self.SwitchProb))                                
+            self.headFile.write('\n\n====================================================\n\n')
+            self.headFile.write('Session Summary:\n')
+            self.headFile.write('Session Time = %f \n' % (time.time() - self.time_ref))
+            self.headFile.write('Number of Trials = %i \n' % (self.TrialCounter))
+            self.headFile.write('Number of Correct Trials = %i \n' % (self.NumCorrectTrials))
+            self.headFile.write('Number of Switches = %i \n'  % (self.NumSwitchTrials))
+            self.headFile.write('Number of Correct Trials after a Switch = %i \n' % (self.CorrectAfterSwitch))
+            self.headFile.write('Number of Incorrect Arm Trials = %i \n' % (self.IncorrectArm))
+            self.headFile.write('Number of Incorrect Goal Trials = %i \n' % (self.IncorrectGoal))
 
-        self.headFile.write('Number of Well Detections: \n')
-        self.headFile.write(", ".join(map(str,self.DetectionTracker.astype(int))))
+            self.headFile.write('Number of Well Detections: \n')
+            self.headFile.write(", ".join(map(str,self.DetectionTracker.astype(int))))
 
-        self.headFile.write('\nNumber of Correct Well Detections: \n')
-        self.headFile.write(", ".join(map(str,self.CorrectWellsTracker.astype(int))))
+            self.headFile.write('\nNumber of Correct Well Detections: \n')
+            self.headFile.write(", ".join(map(str,self.CorrectWellsTracker.astype(int))))
 
-        self.headFile.write('\nTotal Reward Duration = %i \n' % (self.TotalRewardDur))
-        self.headFile.write('Number of Rewards Per Well:\n')
-        self.headFile.write(", ".join(map(str,self.NumRewardsToEachWell.astype(int))))
+            self.headFile.write('\nTotal Reward Duration = %i \n' % (self.TotalRewardDur))
+            self.headFile.write('Number of Rewards Per Well:\n')
+            self.headFile.write(", ".join(map(str,self.NumRewardsToEachWell.astype(int))))
 
-        self.headFile.write('\nTotal Reward Duration Per Well:\n')
-        self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
+            self.headFile.write('\nTotal Reward Duration Per Well:\n')
+            self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
 
     ############# CUE Functions ################################################
     def enable_cue(self):
@@ -473,23 +485,24 @@ class Maze(object):
                 self.CorrectTrialFlag = False
                 self.IncorrectTrialFlag = False
 
-                ## reset rewards duration if animal didn't repeat
-                if self.ChangedRewardFlag:
-                    # reset to reward duration to  original
-                    if self.ResetRewardFlag:
-                        self.Comm.ChangeReward(self.ChangedRewardWell,self.DefaultRewardDurations[self.ChangedRewardWell])
-                        self.ChangedRewardFlag = False
-                        self.ResetRewardFlag = False
-                        self.ChangedRewardWell = -1
-                else:
-                    # Check if too many consecutive rewards to goal wells
-                    for well in self.Wells:
-                        if self.ConsecutiveCorrectWellTracker[well] >= self.ConsecutiveWellRewardThr:
-                            self.ChangedRewardFlag = True
-                            self.ChangedRewardWell = copy.copy(well)
-                            self.Comm.ChangeReward(well,self.ChangeRewardDur)
-                            print ("More than 4 consecutive rewards to well# ", well+1)
-                            print ("Reducing reward to ", self.ChangeRewardDur)
+                if self.Protocol != ['T3e']:
+                    ## reset rewards duration if animal didn't repeat
+                    if self.ChangedRewardFlag:
+                        # reset to reward duration to  original
+                        if self.ResetRewardFlag:
+                            self.Comm.ChangeReward(self.ChangedRewardWell,self.DefaultRewardDurations[self.ChangedRewardWell])
+                            self.ChangedRewardFlag = False
+                            self.ResetRewardFlag = False
+                            self.ChangedRewardWell = -1
+                    else:
+                        # Check if too many consecutive rewards to goal wells
+                        for well in self.Wells:
+                            if self.ConsecutiveCorrectWellTracker[well] >= self.ConsecutiveWellRewardThr:
+                                self.ChangedRewardFlag = True
+                                self.ChangedRewardWell = copy.copy(well)
+                                self.Comm.ChangeReward(well,self.ChangeRewardDur)
+                                print ("More than 4 consecutive rewards to well# ", well+1)
+                                print ("Reducing reward to ", self.ChangeRewardDur)
 
                 ## check for a cue change if in home well
                 if self.Queued_Cue!=0:
@@ -574,6 +587,9 @@ class Maze(object):
                     return True
                 else:
                     return False
+            elif self.Protocol == 'T3e':
+                print('G3')
+                return random.random()<0.5
             else:
                 return True
         return False
@@ -585,6 +601,8 @@ class Maze(object):
                     return True
                 else:
                     return False
+            elif self.Protocol == 'T3e':
+                return True
             else:
                 return True
         return False
@@ -603,6 +621,9 @@ class Maze(object):
                     return True
                 else:
                     return False
+            elif self.Protocol == 'T3e':
+                print('G5')
+                return random.random()<0.5
             else:
                 return True
         return False
@@ -614,6 +635,8 @@ class Maze(object):
                     return True
                 else:
                     return False
+            elif self.Protocol == 'T3e':
+                return True
             else:
                 return True
         return False
@@ -661,7 +684,7 @@ class Maze(object):
     # Trial Processing
     def next_trial(self):
         self.TrialCounter +=1
-        if self.Protocol in ['T3c','T3d','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc'] and self.CorrectTrialFlag:
+        if self.Protocol in ['T3c','T3d','T3e','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc'] and self.CorrectTrialFlag:
             if random.random() < self.SwitchProb: ## switch cue
                 if self.Act_Cue==self.ValidCues[0]:
                     self.Queued_Cue = copy.copy(self.ValidCues[1])
@@ -692,6 +715,7 @@ class Maze(object):
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Time-Out')
+    
 
     def incorrectT4_goal(self):
         self.CorrectTrialFlag = False
@@ -750,7 +774,7 @@ def MS_Setup(protocol,timeoutdur):
         {'trigger':'D0','source':'*','dest':'='}
         ]
 
-        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
+        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
             print('Undefined protocol. Defaulting to T2.')
             protocol = 'T2'
 
@@ -796,6 +820,26 @@ def MS_Setup(protocol,timeoutdur):
                 {'trigger':'D6','source':'AW34','dest':'TimeOut','before':'incorrectT3'}]
             ValidCues = [5,6]
 
+        elif protocol in ['T3e']:
+            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['deactivate_cue','rewardDelivered2']},
+
+                ## goals on the left
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
+        
+                ## incorrect choices
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3'},
+
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'}]
+            ValidCues = [5,6]
+            
         elif protocol in ['T4a','T4d']:
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 

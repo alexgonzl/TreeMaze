@@ -67,14 +67,14 @@ const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
 const int RPGIO_IR_Detect[6] = {47,48,49,50,51,52};
 
 // Default values for pump durations
-const long Pump_ON_Default[6]   = {8, 10, 15, 15, 15, 15};
-long Pump_ON_DUR[6]    = {8, 10, 15, 15, 15, 15};
+const long Pump_ON_Default[6]   = {6, 6, 10, 10, 10, 10};
+long Pump_ON_DUR[6]    = {6, 6, 10, 10, 10, 10};
 
 /* **********************************
    End of Declaration of Arduino Pins
 */
 // Setup of Neopixel Matrix
-Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(8, 8, CUEs1_PIN,
+Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(16, 16, CUEs1_PIN,
   NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
   NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
   NEO_GRB            + NEO_KHZ800);
