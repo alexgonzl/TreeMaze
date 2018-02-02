@@ -243,7 +243,7 @@ class Maze(object):
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
                 #self.SwitchProb = 0.25
-                
+
                 if self.Protocol[:2] in ['T3','T4','T5']:
                     while True:
                         temp = input('Please enter cue switch probability [0 to 100].')
@@ -252,15 +252,15 @@ class Maze(object):
                            break
                         else:
                             print('Invalid Switch Probability')
-                    
+
                 self.TimeOutDuration = 5
                 self.SwitchFlag = False
 
                 states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
 
                 # Reward Tracking
-                self.DefaultRewardDurations = np.array([6,6,10,10,10,10])
-                self.RewardDurations = np.array([6,6,10,10,10,10])
+                self.DefaultRewardDurations = np.array([5,5,10,10,10,10])
+                self.RewardDurations = np.array([5,5,10,10,10,10])
                 self.ChangeRewardDur = 6
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
@@ -409,7 +409,7 @@ class Maze(object):
 
     def printSummary(self):
         if hasattr(self.headFile,'write'):
-            self.headFile.write('Switch Probability = %i \n' % (self.SwitchProb))                                
+            self.headFile.write('Switch Probability = %i \n' % (self.SwitchProb))
             self.headFile.write('\n\n====================================================\n\n')
             self.headFile.write('Session Summary:\n')
             self.headFile.write('Session Time = %f \n' % (time.time() - self.time_ref))
@@ -708,6 +708,8 @@ class Maze(object):
             if self.SwitchFlag:
                 self.CorrectAfterSwitch += 1
                 self.SwitchFlag= False
+                self.DeliverReward(0)
+                self.rewardDelivered1()
 
     def incorrectT3(self):
         self.IncorrectTrialFlag = True
@@ -715,7 +717,6 @@ class Maze(object):
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectArm += 1
         print('Incorrect arm. Time-Out')
-    
 
     def incorrectT4_goal(self):
         self.CorrectTrialFlag = False
@@ -831,7 +832,7 @@ def MS_Setup(protocol,timeoutdur):
                 ## goals on the left
                 {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['deactivate_cue','rewardDelivered2']},
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['deactivate_cue','rewardDelivered2']},
-        
+
                 ## incorrect choices
                 {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3'},
                 {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3'},
@@ -839,7 +840,7 @@ def MS_Setup(protocol,timeoutdur):
                 {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'},
                 {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'}]
             ValidCues = [5,6]
-            
+
         elif protocol in ['T4a','T4d']:
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
 
