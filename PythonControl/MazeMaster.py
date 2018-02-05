@@ -45,7 +45,7 @@ def readArduino(arduinoEv, interruptEv):
                                 arduinoEv.set()
                             else:
                                 pass
-                                #print (data)
+                                print (data)
                     except:
                         #print ("error", sys.exc_info()[0])
                         pass

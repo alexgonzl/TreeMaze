@@ -30,8 +30,8 @@
 /* Program constants.
 */
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
-const long DETECT_TIME_THR  = 50; // in ms
-const long DETECT_REFRAC_THR = 5000; // twenty seconds before registering a second detection
+const long DETECT_TIME_THR  = 80; // in ms
+const long DETECT_REFRAC_THR = 4000; // twenty seconds before registering a second detection
 const bool Pump_ON = LOW; // LOW activates the pump
 const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
 const int nWells = 6; // number of reward wells
@@ -178,7 +178,7 @@ void setup() {
 
   // Neopixel setup:
   NeoPix.begin();
-  NeoPix.setBrightness(60);
+  NeoPix.setBrightness(70);
   NeoPix.fillScreen(0);
   NeoPix.show();
 
@@ -604,6 +604,7 @@ int SelectWellToActive() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
+    
 //    Serial.print("<Activated Well #");
 //    Serial.println(well + 1);
 //    Serial.println(">");
@@ -639,6 +640,11 @@ void ActivateWell(int well) {
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
 
+  Well_IR_State[well] = false;
+  Well_Detect_State[well] = false;
+  Well_IR_RefracTimeRef[well] = 0;
+  ResetDetectTimer(well);
+  
   //Deliver_Reward(well);
   sendEventCode(AW, well + 1);
 }

@@ -253,7 +253,7 @@ class Maze(object):
                         else:
                             print('Invalid Switch Probability')
 
-                self.TimeOutDuration = 5
+                self.TimeOutDuration = 6
                 self.SwitchFlag = False
 
                 states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
@@ -708,7 +708,7 @@ class Maze(object):
             if self.SwitchFlag:
                 self.CorrectAfterSwitch += 1
                 self.SwitchFlag= False
-                self.DeliverReward(0)
+                self.Comm.DeliverReward(0)
                 self.rewardDelivered1()
 
     def incorrectT3(self):
