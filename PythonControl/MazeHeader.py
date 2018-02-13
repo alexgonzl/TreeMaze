@@ -152,7 +152,10 @@ def logEvent(code,MS):
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
     def __init__(self,baud):
-        self.ard = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
+        try:
+            self.ard = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
+        except:
+            self.ard = serial.Serial('/dev/ttyUSB1',baud,timeout=0.1)
         self.ard.reset_input_buffer()
         self.ard.reset_output_buffer()
 
@@ -253,7 +256,7 @@ class Maze(object):
                         else:
                             print('Invalid Switch Probability')
 
-                self.TimeOutDuration = 6
+                self.TimeOutDuration = 10
                 self.SwitchFlag = False
 
                 states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
@@ -485,7 +488,7 @@ class Maze(object):
                 self.CorrectTrialFlag = False
                 self.IncorrectTrialFlag = False
 
-                if self.Protocol != ['T3e']:
+                if self.Protocol not in ['T3e','T3f']:
                     ## reset rewards duration if animal didn't repeat
                     if self.ChangedRewardFlag:
                         # reset to reward duration to  original
@@ -587,8 +590,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol == 'T3e':
-                print('G3')
+            elif self.Protocol in ['T3e','T3f']:
                 return random.random()<0.5
             else:
                 return True
@@ -601,7 +603,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol == 'T3e':
+            elif self.Protocol in ['T3e','T3f']:
                 return True
             else:
                 return True
@@ -621,8 +623,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol == 'T3e':
-                print('G5')
+            elif self.Protocol in ['T3e','T3f']:
                 return random.random()<0.5
             else:
                 return True
@@ -635,7 +636,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol == 'T3e':
+            elif self.Protocol in ['T3e','T3f']:
                 return True
             else:
                 return True
@@ -684,7 +685,7 @@ class Maze(object):
     # Trial Processing
     def next_trial(self):
         self.TrialCounter +=1
-        if self.Protocol in ['T3c','T3d','T3e','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc'] and self.CorrectTrialFlag:
+        if self.Protocol in ['T3c','T3d','T3e','T3f','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc'] and self.CorrectTrialFlag:
             if random.random() < self.SwitchProb: ## switch cue
                 if self.Act_Cue==self.ValidCues[0]:
                     self.Queued_Cue = copy.copy(self.ValidCues[1])
@@ -775,7 +776,7 @@ def MS_Setup(protocol,timeoutdur):
         {'trigger':'D0','source':'*','dest':'='}
         ]
 
-        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
+        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
             print('Undefined protocol. Defaulting to T2.')
             protocol = 'T2'
 
@@ -840,6 +841,27 @@ def MS_Setup(protocol,timeoutdur):
                 {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'},
                 {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'}]
             ValidCues = [5,6]
+
+        elif protocol in ['T3f']:
+            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['rewardDelivered2']},
+
+                ## goals on the left
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['rewardDelivered2']},
+
+                ## incorrect choices
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'}]
+            ValidCues = [5,6]
+
 
         elif protocol in ['T4a','T4d']:
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """

@@ -7,7 +7,7 @@
 
 import threading
 from MazeHeader import *
-PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
+PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
