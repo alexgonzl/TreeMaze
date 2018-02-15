@@ -396,6 +396,8 @@ class Maze(object):
         print('Previous Goal = ', self.PrevDetectedGoalWell)
         print('Trial Number = ', self.TrialCounter)
         print('# of Correct Trials = ', self.NumCorrectTrials)
+        print('Number of Switches = ', self.NumSwitchTrials)
+        print('Number of Correct Trials after a Switch = ', self.CorrectAfterSwitch)
         print('Total Reward Dur = ', self.TotalRewardDur)
         print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
         print('=====================================')
@@ -685,7 +687,7 @@ class Maze(object):
     # Trial Processing
     def next_trial(self):
         self.TrialCounter +=1
-        if self.Protocol in ['T3c','T3d','T3e','T3f','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc'] and self.CorrectTrialFlag:
+        if self.Protocol in ['T3c','T3d','T3e','T3f','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             if random.random() < self.SwitchProb: ## switch cue
                 if self.Act_Cue==self.ValidCues[0]:
                     self.Queued_Cue = copy.copy(self.ValidCues[1])
@@ -702,15 +704,17 @@ class Maze(object):
 
     def correctTrial(self):
         if not self.IncorrectTrialFlag:
-            self.CorrectTrialFlag = True
-            self.NumCorrectTrials += 1
-            self.NumConsecutiveCorrectTrials += 1
-
-            if self.SwitchFlag:
+            if self.SwitchFlag and self.NumConsecutiveCorrectTrials>0:
                 self.CorrectAfterSwitch += 1
                 self.SwitchFlag= False
                 self.Comm.DeliverReward(0)
                 self.rewardDelivered1()
+                self.Comm.DeliverReward(1)
+                self.rewardDelivered2()
+
+            self.CorrectTrialFlag = True
+            self.NumCorrectTrials += 1
+            self.NumConsecutiveCorrectTrials += 1
 
     def incorrectT3(self):
         self.IncorrectTrialFlag = True
