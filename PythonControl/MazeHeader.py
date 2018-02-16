@@ -330,18 +330,15 @@ class Maze(object):
 
     def STOP(self):
         if self.PythonControlFlag:
-            print('Automatic control disabled.')
-            print('Total Number of Trials = ', self.TrialCounter)
-            print('Total Correct Number of Trials = ', self.NumCorrectTrials)
-            print('Total Reward Duration = ', self.TotalRewardDur)
-            print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
+            self.PythonControlFlag=False
+            print('Automatic control disabled.') 
+            self.STATUS()
             self.stop()
             self.Act_Well.fill(False)
             self.Act_Cue_State = False
             self.Act_Cue = 0
             self.printSummary()
 
-        self.PythonControlFlag=False
         self.Comm.Reset()
 
     def DETECT(self,well):
@@ -388,7 +385,7 @@ class Maze(object):
     def STATUS(self):
         print()
         print('======= State Machine Status =========')
-        print('Protocol = ',self.Protocol)
+        print('Protocol = ',self.Protocol, ' - ', self.SwitchProb)
         print('Active Cue = ', self.Act_Cue)
         print('Queued Cue = ', self.Queued_Cue)
         print('Current State = ', self.state)
@@ -397,7 +394,7 @@ class Maze(object):
         print('Trial Number = ', self.TrialCounter)
         print('# of Correct Trials = ', self.NumCorrectTrials)
         print('Number of Switches = ', self.NumSwitchTrials)
-        print('Number of Correct Trials after a Switch = ', self.CorrectAfterSwitch)
+        print('Number of Correct Switches = ', self.CorrectAfterSwitch)
         print('Total Reward Dur = ', self.TotalRewardDur)
         print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
         print('=====================================')
@@ -707,10 +704,10 @@ class Maze(object):
             if self.SwitchFlag and self.NumConsecutiveCorrectTrials>0:
                 self.CorrectAfterSwitch += 1
                 self.SwitchFlag= False
-                self.Comm.DeliverReward(0)
-                self.rewardDelivered1()
-                self.Comm.DeliverReward(1)
-                self.rewardDelivered2()
+                ## self.Comm.DeliverReward(0)
+                ## self.rewardDelivered1()
+                ## self.Comm.DeliverReward(1)
+                ## self.rewardDelivered2()
 
             self.CorrectTrialFlag = True
             self.NumCorrectTrials += 1
