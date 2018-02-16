@@ -15,7 +15,7 @@
   y -> turn off cue.
 
   Alex Gonzalez
-  Updated: 10/27/17
+  Updated: 2/15/18
 */
 
 
@@ -27,8 +27,9 @@
 #include <avr/power.h>
 #endif
 
-/* Program constants.
-*/
+/*********************************
+ Program constants
+**********************************/
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
 const long DETECT_TIME_THR  = 80; // in ms
 const long DETECT_REFRAC_THR = 4000; // twenty seconds before registering a second detection
@@ -36,46 +37,37 @@ const bool Pump_ON = LOW; // LOW activates the pump
 const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
 const int nWells = 6; // number of reward wells
 const int nCues = 4; // max number of cues.
-const int TTL_PulseDur = 10; // Output TTL Pulse Duration in ms 
-
-/*  ***************************
-    Declaration of Arduino Pins
-*/
-// PINs for CUE signals output and control.
-const int CUEs1_PIN = 53;
-
-// TTL Well LED Pins
-const int TTL_LED_Pins[6] = {4, 5, 6, 7, 8, 9};
-
-// TTL WELL IR Detect Pins
-const int TTL_IR_Pins[6] = {10, 11, 12, 26, 27, 28};
-
-// TTL CUE Code Pins
-const int TTL_CUE_Pins[4] = {29, 30, 31, 32};
-
-// TTL Reward Delivered Pin (one pump activated)
-const int TTL_RD_Pin = 33;
-
-// Pins for the Pump outputs
-const int Pumps_Pins[6] = {34, 35, 36, 37, 38, 39};
-
-// Interrupt Pins for the input IR detects
-const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
-
-// LED outout pins LEDs
-const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
-
-// RPGIO IR detect outputs to RPI
-const int RPGIO_IR_Detect[6] = {47,48,49,50,51,52};
-
+const int TTL_PulseDur = 10; // Output TTL Pulse Duration in ms
 // Default values for pump durations
 const long Pump_ON_Default[6]   = {6, 6, 10, 10, 10, 10};
 long Pump_ON_DUR[6]    = {6, 6, 10, 10, 10, 10};
 
-/* **********************************
-   End of Declaration of Arduino Pins
-*/
-// Setup of Neopixel Matrix
+/****************************
+    Declaration of Arduino Pins
+*******************************/
+// PINs for CUE signals output and control.
+const int CUEs1_PIN = 53;
+// TTL Well LED Pins
+const int TTL_LED_Pins[6] = {4, 5, 6, 7, 8, 9};
+// TTL WELL IR Detect Pins
+const int TTL_IR_Pins[6] = {10, 11, 12, 26, 27, 28};
+// TTL CUE Code Pins
+/*29->right. 30->left; 31 and 32 unused*/
+const int TTL_CUE_Pins[4] = {29, 30, 31, 32};
+// TTL Reward Delivered Pin (one pump activated)
+const int TTL_RD_Pin = 33;
+// Pins for the Pump outputs
+const int Pumps_Pins[6] = {34, 35, 36, 37, 38, 39};
+// Interrupt Pins for the input IR detects
+const int Well_IR_Pins[6] = {2, 3, 21, 20, 19, 18};
+// LED outout pins LEDs
+const int Well_LED_Pins[6] = {40, 41, 42, 43, 44, 45};
+// RPGIO IR detect outputs to RPI
+const int RPGIO_IR_Detect[6] = {47,48,49,50,51,52};
+
+/******************************************
+        Setup of Neopixel Matrix
+*******************************************/
 Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(16, 16, CUEs1_PIN,
   NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
   NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
@@ -86,41 +78,43 @@ const uint32_t  NP_green = NeoPix.Color(0, 120, 0);
 const uint32_t  NP_white = NeoPix.Color(255, 255, 255);
 const uint32_t  NP_off = NeoPix.Color(0, 0, 0);
 
-// Cue parameters
+/******************************************
+        Cue parameters
+*******************************************/
 const uint32_t  CUE_Colors[3] = {NP_blueviolet, NP_green, NP_white}; // array for NP colors
 const float CUE_Freqs[3] = {1.67, 3.85, 0};
 // half cycles of CUE_Freqs in ms: HC = (1/F)/2*1000
 const long CUE_HalfCycles[3] = {300, 130, 0};
 const long CUE9_TimeLimit = 20;
-
 // cue state variables
 uint32_t  ActiveCueColor = NP_off;
 float ActiveCUE_Freq = 0;
 long ActiveCUE_HalfCycle = 0;
 bool ActiveCUE_UP = false;
 int ActiveCUE_ID = 0;
-
+int TTL_CUE_ID = -1;
 // Cue timers
 unsigned long CUE_Timer;
 unsigned long CUE_TimeRef;
 
+/******************************************
+        State variables
+*******************************************/
 // Serial State Variable:
 bool SerialState = false;
-
 // Well State Variables:
 bool Well_IR_State[nWells]; // state variable for the wells IR interrupts
 bool Well_Detect_State[nWells]; // state variable for wells IRs that passed threshold.
 bool Well_LED_State[nWells]; // variable LED indicating on/off
 bool Well_Active_State[nWells]; // state variable indicating active well
 bool Pump_State[nWells]; // Pump: on/off
-
 // TTL State Variables
 bool TTL_IR_Detect[nWells]; // TTL PULSE indicating that there was a detection.
 bool TTL_RD; // TTL PULSE indicating if a reward was delivered.
-bool TTL_LED_State[nWells]; // LED State. Low-> off, High-> on
-bool TTL_CUEs_State[nCues]; //  Cue State. Low-> off, High-> on
 
-// Time references
+/******************************************
+        Time references
+*******************************************/
 unsigned long Well_Active_TimeRef[nWells]; // time reference for LED on
 unsigned long Well_Active_Timer[nWells];   // timer indicating how long LED has been on
 unsigned long Well_IR_TimeRef[nWells];  // time reference: for IR detection
@@ -159,7 +153,6 @@ void setup() {
 
     // TTLs
     TTL_IR_Detect[well] = False;
-    TTL_LED_State[well] = False;
   }
 
   // LEDs
@@ -185,23 +178,22 @@ void setup() {
 
     // TTL IR Detects
     pinMode(TTL_IR_Pins[well], OUTPUT);
-    digitalWrite(TTL_IR_Pins[well],LOW);  
+    digitalWrite(TTL_IR_Pins[well],LOW);
   }
 
   // Other TTL outputs
-  
+
   // Cues
   for (int cue = 0; cue < nCues; cue++){
     pinMode(TTL_CUE_Pins[cue], OUTPUT);
     digitalWrite(TTL_CUE_Pins[cue],LOW);
   }
-  
+
   // Reward Delivered
   pinMode(TTL_RD_Pin, OUTPUT);
   digitalWrite(TTL_RD_Pin,LOW);
   TTL_RD = false
-  
-  
+
   // Attach interrupts independently
   attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[0]), IR_Detect1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[1]), IR_Detect2, CHANGE);
@@ -247,9 +239,6 @@ void loop() {
         if (PumpTimer[well] >= Pump_ON_DUR[well]) {
           TurnOFFPump(well);
           sendEventCode(RR, well + 1);
-//          Serial.print("<Reward Delivered to Well # ");
-//          Serial.println(well + 1);
-//          Serial.println(">");   
         }
       }
     }
@@ -436,14 +425,9 @@ int SelectCueOn() {
   if (cue >= 1 && cue <= 9) {
     ActiveCUE_ID = cue;
     sendEventCode(CA, cue);
-//    Serial.print("<Ard. Activated Cue #");
-//    Serial.println(cue);
-//    Serial.print(">");
   }
   else {
     ActiveCUE_ID = 0;
-//    Serial.println("<\nArd. Invalid cue number.");
-//    Serial.print(">\n");
   }
   SetCueParams(ActiveCUE_ID);
   return ActiveCUE_ID;
@@ -459,56 +443,69 @@ void TurnCueOff() {
 void SetCueParams(int CueNum) {
   switch (CueNum) {
     // color 1
-    case 1:
+    case 1: // violet low freq -> right
       ActiveCueColor = CUE_Colors[0];
       ActiveCUE_Freq = CUE_Freqs[0];
       ActiveCUE_HalfCycle = CUE_HalfCycles[0];
+      TTL_CUE_ID = 0;
       break;
-    case 2:
+    case 2: // violet high freq right
       ActiveCueColor = CUE_Colors[0];
       ActiveCUE_Freq = CUE_Freqs[1];
       ActiveCUE_HalfCycle = CUE_HalfCycles[1];
+      TTL_CUE_ID = 0;
       break;
     // color 2
-    case 3:
+    case 3: // green low freq left
       ActiveCueColor = CUE_Colors[1];
       ActiveCUE_Freq = CUE_Freqs[0];
       ActiveCUE_HalfCycle = CUE_HalfCycles[0];
+      TTL_CUE_ID = 1;
       break;
-    case 4:
+    case 4: // green high freq left
       ActiveCueColor = CUE_Colors[1];
       ActiveCUE_Freq = CUE_Freqs[1];
       ActiveCUE_HalfCycle = CUE_HalfCycles[1];
+      TTL_CUE_ID = 1;
       break;
     // constant colors
-    case 5:
+    case 5: // violet right
       ActiveCueColor = CUE_Colors[0];
       ActiveCUE_Freq = CUE_Freqs[2];
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
+      TTL_CUE_ID = 0;
       break;
-    case 6:
+    case 6: // green left
       ActiveCueColor = CUE_Colors[1];
       ActiveCUE_Freq = CUE_Freqs[2];
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
+      TTL_CUE_ID = 1;
       break;
-    case 9:
+    case 9: // white
       ActiveCueColor = NP_white;
       ActiveCUE_Freq = CUE_Freqs[2];
       ActiveCUE_HalfCycle = CUE_HalfCycles[2];
+      TTL_CUE_ID = 2;
       break;
     default:
       ActiveCUE_ID = 0;
       ActiveCueColor = NP_off;
       ActiveCUE_Freq = 0;
       ActiveCUE_HalfCycle = 0;
+      TTL_CUE_ID = 3;
       break;
   }
   ChangeCueColor(ActiveCueColor);
+  if (TTL_CUE_ID>=0) {
+    digitalWrite(TTL_CUE_Pins[TTL_CUE_ID],HIGH);
+  }
 }
 void ChangeCueColor(uint32_t col) {
   if (col == NP_off) {
     NeoPix.fillScreen(0);
-    TTL
+    for (int cue = 0; cue < nCues; cue++){
+      digitalWrite(TTL_CUE_Pins[cue],LOW);
+    }
   } else {
     NeoPix.fillScreen(col);
   }
@@ -636,10 +633,6 @@ int SelectWellToActive() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
-    
-//    Serial.print("<Activated Well #");
-//    Serial.println(well + 1);
-//    Serial.println(">");
     return well;
   }
   else {
@@ -653,9 +646,6 @@ int SelectWellToDeActive() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
-//    Serial.print("<Deactivated Well #");
-//    Serial.println(well + 1);
-//    Serial.println(">");
     return well;
   }
   else {
@@ -676,7 +666,7 @@ void ActivateWell(int well) {
   Well_Detect_State[well] = false;
   Well_IR_RefracTimeRef[well] = 0;
   ResetDetectTimer(well);
-  
+
   //Deliver_Reward(well);
   sendEventCode(AW, well + 1);
 }
@@ -710,11 +700,13 @@ void reset_states() {
 *****************************************/
 void  Well_LED_ON(int well) {
   digitalWrite(Well_LED_Pins[well], HIGH);
+  digitalWrite(TTL_LED_Pins[well], HIGH);
   Well_LED_State[well] = true;
 }
 
 void  Well_LED_OFF(int well) {
   digitalWrite(Well_LED_Pins[well], LOW);
+  digitalWrite(TTL_LED_Pins[well], LOW);
   Well_LED_State[well] = false;
 }
 
@@ -730,11 +722,11 @@ void ToggleLED(){
 }
 
 /**************************************
- * TTL Pulse Functions 
- * 
+ * TTL Pulse Functions
+ *
  **************************************/
 void sendTTLPulse(int pin){
-  
+
 }
 
 /****************************************
