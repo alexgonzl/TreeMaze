@@ -31,6 +31,7 @@
  Program constants
 **********************************/
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
+const long MAX_TIME_UL = 4294967295UL;
 const long DETECT_TIME_THR  = 80; // in ms
 const long DETECT_REFRAC_THR = 4000; // twenty seconds before registering a second detection
 const bool Pump_ON = LOW; // LOW activates the pump
@@ -109,8 +110,7 @@ bool Well_LED_State[nWells]; // variable LED indicating on/off
 bool Well_Active_State[nWells]; // state variable indicating active well
 bool Pump_State[nWells]; // Pump: on/off
 // TTL State Variables
-bool TTL_IR_Detect[nWells]; // TTL PULSE indicating that there was a detection.
-bool TTL_RD; // TTL PULSE indicating if a reward was delivered.
+bool TTL_IR_Detect_State[nWells]; // TTL PULSE indicating that there was a detection.
 
 /******************************************
         Time references
@@ -120,6 +120,7 @@ unsigned long Well_Active_Timer[nWells];   // timer indicating how long LED has 
 unsigned long Well_IR_TimeRef[nWells];  // time reference: for IR detection
 unsigned long Well_IR_Timer[nWells];    // timer for how long IR has been on.
 unsigned long Well_IR_RefracTimeRef[nWells]; // timer for second detection
+unsigned long TTL_IR_Detect_Timer[nWells]; // timer
 
 unsigned long PumpTimeRef[nWells];      // time ref for pump on
 unsigned long PumpTimer[nWells];        // timer for how long pump has been on
@@ -141,18 +142,17 @@ void setup() {
     Well_Detect_State[well] = false;
     Well_LED_State[well] = false;
     Pump_State[well] = false;
+    TTL_IR_Detect_State[well] = false;
 
-    Well_Active_TimeRef[well] = 15000UL;
-    Well_IR_TimeRef[well] = 15000UL;
-    PumpTimeRef[well] = 15000UL;
+    Well_Active_TimeRef[well] = MAX_TIME_UL;
+    Well_IR_TimeRef[well] = MAX_TIME_UL;
+    PumpTimeRef[well] = MAX_TIME_UL;
     Well_IR_RefracTimeRef[well] = 0;
+    TTL_IR_Detect_Timer = 0;
 
     Well_Active_Timer[well] = 0;
     PumpTimer[well] = 0;
     Well_IR_Timer[well] = 0;
-
-    // TTLs
-    TTL_IR_Detect[well] = False;
   }
 
   // LEDs
@@ -192,7 +192,6 @@ void setup() {
   // Reward Delivered
   pinMode(TTL_RD_Pin, OUTPUT);
   digitalWrite(TTL_RD_Pin,LOW);
-  TTL_RD = false
 
   // Attach interrupts independently
   attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[0]), IR_Detect1, CHANGE);
@@ -223,7 +222,9 @@ void loop() {
     }
     // Check serial input.
     ProcessInput();
-    // Process the wells.
+    /**************************************
+      Process the wells.
+    ***************************************/
     for (int well = 0; well < nWells; well++) {
       WellDetectThrCheck(well);
       // if well is active, check to deliver reward
@@ -241,9 +242,19 @@ void loop() {
           sendEventCode(RR, well + 1);
         }
       }
-    }
+      // TTL IRs Timer reset
+      if (TTL_IR_Detect_State[well] == true){
+        if ( (millis()-TTL_IR_Detect_Timer[well])>=TTL_PulseDur ){
+          TTL_IR_Detect_State = false;
+          TTL_IR_Detect_Timer = MAX_TIME_UL;
+          digitalWrite(TTL_IR_Pins[well],LOW);
+        }
+      }
+    } // well loop
 
-    // Process the cue if not constant.
+    /**************************************
+      Process the CUE
+    ***************************************/
     if (ActiveCUE_ID >= 1 & ActiveCUE_ID <= 4) {
       CUE_Timer = millis() - CUE_TimeRef;
       if (CUE_Timer > ActiveCUE_HalfCycle) {
@@ -267,8 +278,17 @@ void loop() {
     SerialState = false;
     reset_states();
     TurnCueOff();
-  }
-}
+  } //cue Processing
+} // end of Main loop()
+
+
+/**********************************************************
+***********************************************************
+***********************************************************
+                    Dependent Routines
+***********************************************************
+***********************************************************
+***********************************************************/
 
 /*************************************
   ISR routines for IR well detection
@@ -305,6 +325,10 @@ void IR_Detect_ReportChange(int well) {
     Well_IR_State[well] = false;
     Well_Detect_State[well] = false;
     ResetDetectTimer(well);
+
+    TTL_IR_Detect_State[well] = false;
+    TTL_IR_Detect_Timer = MAX_TIME_UL;
+    digitalWrite(TTL_IR_Pins[well],LOW);
   }
 }
 
@@ -318,10 +342,14 @@ void WellDetectThrCheck(int well) {
         // valid Detection
         if (Well_IR_Timer[well] >= DETECT_TIME_THR) {
           Well_Detect_State[well] = true;
-          // digitalWrite(RPGIO_IR_Detect[well], !digitalRead(RPGIO_IR_Detect[well]));
           ResetDetectTimer(well);
           Well_IR_RefracTimeRef[well] = millis();
           sendEventCode(DD, well + 1);
+
+          // send TTL for detection
+          TTL_IR_Detect_State[well] = true;
+          TTL_IR_Detect_Timer[well] = millis();
+          digitalWrite(TTL_IR_Pins[well],HIGH);
         }
       }
     }
@@ -330,7 +358,7 @@ void WellDetectThrCheck(int well) {
 
 // Reset IR Timer
 void ResetDetectTimer(int well) {
-  Well_IR_TimeRef[well] = 15000UL;
+  Well_IR_TimeRef[well] = MAX_TIME_UL;
   Well_IR_Timer[well] = 0;
 }
 
@@ -521,9 +549,6 @@ int SelectPumpToTurnOn() {
   int well = SerialReadNum();
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
-//    Serial.print("<Pump Activated #");
-//    Serial.println(well + 1);
-//    Serial.print(">\n");
     return well;
   }
   else {
@@ -535,13 +560,12 @@ int SelectPumpToTurnOn() {
 
 void Deliver_Reward(int well) {
   TurnOnPump(well);
-//  Serial.println("<Delivering Reward");
-//  Serial.println(">");
 }
 
 void TurnOnPump(int well) {
   // set pump to on & set pump timer
   digitalWrite(Pumps_Pins[well], Pump_ON);
+  digitalWrite(TTL_RD_Pin,HIGH);
   Pump_State[well] = true;
   PumpTimeRef[well] = millis();
   PumpTimer[well] = 0;
@@ -550,8 +574,9 @@ void TurnOnPump(int well) {
 // turn off pump and reset pump timers
 void TurnOFFPump(int well) {
   digitalWrite(Pumps_Pins[well], Pump_OFF);
+  digitalWrite(TTL_RD_Pin,LOW);
   Pump_State[well] = false;
-  PumpTimeRef[well] = 15000UL;
+  PumpTimeRef[well] = MAX_TIME_UL;
   PumpTimer[well] = 0;
 }
 
@@ -664,6 +689,8 @@ void ActivateWell(int well) {
 
   Well_IR_State[well] = false;
   Well_Detect_State[well] = false;
+  digitalWrite(TTL_IR_Pins[well],LOW);
+
   Well_IR_RefracTimeRef[well] = 0;
   ResetDetectTimer(well);
 
@@ -673,7 +700,7 @@ void ActivateWell(int well) {
 
 void DeActivateWell(int well) {
   Well_Active_State[well] = false;
-  Well_Active_TimeRef[well] = 15000UL;
+  Well_Active_TimeRef[well] = MAX_TIME_UL;
   Well_Active_Timer[well] = 0;
   Well_LED_OFF(well);
   sendEventCode(DW, well + 1);
@@ -719,14 +746,6 @@ void ToggleLED(){
       Well_LED_OFF(well);
     }
   }
-}
-
-/**************************************
- * TTL Pulse Functions
- *
- **************************************/
-void sendTTLPulse(int pin){
-
 }
 
 /****************************************
