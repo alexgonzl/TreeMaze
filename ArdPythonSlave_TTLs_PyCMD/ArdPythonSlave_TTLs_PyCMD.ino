@@ -25,6 +25,7 @@
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
 #include <avr/power.h>
+#include <CmdMessenger.h>
 #endif
 
 /*********************************
@@ -133,7 +134,64 @@ char DW[] = "DW"; // deactivated well (usually after detection)
 char CA[] = "CA"; // cue on.
 char CD[] = "CD"; // cue off/
 
-// Setup
+/***************************************************
+  CmdMessenger
+****************************************************/
+CmdMessenger comm = CmdMessenger(Serial);
+
+// List of Commands
+enum
+{
+  kAcknowledge,
+  kError,
+  kActivateAllWells,
+  kSelectWellToActive,
+  kSelectWellToDeActive,
+  kToggleLED,
+  kLED_ON,
+  kLED_OFF,
+  kSelectPumpToTurnOn,
+  kChangePumpOnDur,
+  kTurnPumpOnForXDur,
+  kSelectCueOn,
+  kTurnCueOff,
+  kPrint_states,
+  kSendEvent,
+  kReset_states,
+}
+
+void attachCommandCallbacks(){
+  comm.attach(OnUnknownCommand);
+  comm.attach(kActivateAllWells,ActivateAllWells);
+  comm.attach(kSelectWellToActive,SelectWellToActive);
+  comm.attach(kSelectWellToDeActive,SelectWellToDeActive);
+  comm.attach(kToggleLED,ToggleLED);
+  comm.attach(kLED_ON,LED_ON);
+  comm.attach(kLED_OFF,LED_OFF);
+  comm.attach(kSelectPumpToTurnOn,SelectPumpToTurnOn);
+  comm.attach(kChangePumpOnDur,ChangePumpOnDur);
+  comm.attach(kTurnPumpOnForXDur,TurnPumpOnForXDur);
+  comm.attach(kSelectCueOn,SelectCueOn);
+  comm.attach(kTurnCueOff,TurnCueOff);
+  comm.attach(kPrint_states,print_states);
+  comm.attach(kReset_states, reset_states);
+  comm.attach(kSendEvent, sendEvent);
+}
+
+void OnUnknownCommand(){
+   comm.sendCmd(kError,"Command without attached callback");
+}
+
+void sendEvent(char* code, int num){
+  comm.sendCmdStart(kAcknowledge);
+  comm.sendCmdfArg("%s_%d",code,num);
+  comm.sendCmdEnd();
+}
+
+
+/***************************************************
+  Setup
+****************************************************/
 void setup() {
   //  state variables for the wells & time references initiation
   for (int well = 0; well < nWells; well++) {
@@ -181,8 +239,6 @@ void setup() {
     digitalWrite(TTL_IR_Pins[well],LOW);
   }
 
-  // Other TTL outputs
-
   // Cues
   for (int cue = 0; cue < nCues; cue++){
     pinMode(TTL_CUE_Pins[cue], OUTPUT);
@@ -209,9 +265,10 @@ void setup() {
 
   delay(500);
   Serial.begin(BAUD_RATE);
-  Serial.println("<");
-  Serial.println("<Initiation completed.");
-  Serial.print(">");
+  comm.printLfCr();
+  attachCommandCallbacks();
+
+  comm.sendCmd(kAcknowledge,"Arduino has started!");
 } // end setup
 
 //Main
@@ -221,7 +278,7 @@ void loop() {
       SerialState = true;
     }
     // Check serial input.
-    ProcessInput();
+    comm.feedinSerialData();
     /**************************************
       Process the wells.
     ***************************************/
@@ -464,7 +521,7 @@ int SelectCueOn() {
 void TurnCueOff() {
   sendEventCode(CD, ActiveCUE_ID);
   SetCueParams(0);
-  CUE_TimeRef = 15000L;
+  CUE_TimeRef = MAX_TIME_UL;
   CUE_Timer   = 0;
 }
 
@@ -546,14 +603,10 @@ void ChangeCueColor(uint32_t col) {
       Pump/Reward Control
 *****************************************/
 int SelectPumpToTurnOn() {
-  int well = SerialReadNum();
+  int well = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
     return well;
-  }
-  else {
-    Serial.println("<\nArd. Invalid pump number.");
-    Serial.print(">\n");
   }
   return -1;
 }
@@ -581,108 +634,46 @@ void TurnOFFPump(int well) {
 }
 
 void ChangePumpOnDur() {
-  int well = SerialReadNum();
+  int well = comm.readInt16Arg();
+  int dur = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
-    SetPumpDur(well);
+    SetPumpDur(well,dur);
   }
 }
 
-void SetPumpDur(int well) {
-  unsigned long intimer = millis();
-  bool startReading = false;
-  bool finishedReading = false;
-  char durbuffer[10];
-  int  charcounter = 0;
-  // read the duration as a string
-  while (intimer >= (millis() - 5000) || finishedReading) {
-    if (Serial.available()) {
-      char bufferchar = Serial.read();
-      if (startReading) {
-        if (bufferchar == '>') {
-          finishedReading = true;
-          durbuffer[charcounter] = '\0';
-          break;
-        }
-        else {
-          if (bufferchar >= '0' && bufferchar <= '9') {
-            durbuffer[charcounter] = bufferchar;
-            charcounter++;
-          }
-          else if (bufferchar == 'x') { // reset
-            finishedReading = true;
-            Pump_ON_DUR[well] = Pump_ON_Default[well];
-            Serial.print("Ard. Defaulting to original pump on duration:");
-            Serial.println(Pump_ON_Default[well]);
-            Serial.println("");
-            Serial.println(">");
-            return;
-          }
-          else {
-            finishedReading = true;
-            Serial.println("Ard. Invalid pump-on duration.");
-            return;
-          }
-        }
-      }
-      if (bufferchar == '<') {
-        Serial.println("Ard. Reading dur input. ");
-        startReading = true;
-      }
-    }
-  }
-  if (finishedReading) {
-    long dur = atol(durbuffer);
-    if (dur >= 0 && dur <= 500) {
-      Pump_ON_DUR[well] = dur;
-      Serial.print("<Changed Pump-On Duration to:");
-      Serial.println(dur);
-      Serial.print(">");
-    }
-    else {
-      Pump_ON_DUR[well] = Pump_ON_Default[well];
-      Serial.print("<Input exceeds limits. Defaulting to original:");
-      Serial.println(Pump_ON_Default[well]);
-      Serial.print(">");
-    }
-  }
-  else {
+void
+
+void SetPumpDur(int well, int dur) {
+  if (dur>0 && dur <=250){
+    Pump_ON_DUR[well] = dur;
+  } else {
     Pump_ON_DUR[well] = Pump_ON_Default[well];
-    Serial.println("<\nTimed out to input duration well");
-    Serial.print(">");
+    comm.sendCmd(kError, 'Invalid Pump Duration');
   }
 }
+
 /****************************************
    Activate/Deactivate wells.
 *****************************************/
 int SelectWellToActive() {
-  int well = SerialReadNum();
+  int well = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
     return well;
-  }
-  else {
-    Serial.println("<\nArd. Invalid well number.");
-    Serial.print(">");
   }
   return -1;
 }
 
 int SelectWellToDeActive() {
-  int well = SerialReadNum();
+  int well = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
     return well;
-  }
-  else {
-    Serial.println("<\nArd. Invalid well number.");
-    Serial.println(">");
   }
   return -1;
 }
 
 void ActivateWell(int well) {
-  //if (well<=1){ Well_LED_ON(well); }
-  //Well_LED_ON(well);
   Well_Active_State[well] = true;
   Well_Active_TimeRef[well] = millis();
   Well_Active_Timer[well] = 0;
@@ -725,6 +716,15 @@ void reset_states() {
 /****************************************
           Well LED functions
 *****************************************/
+void LED_ON(){
+  int well = comm.readInt16Arg();
+  Well_LED_ON(well);
+}
+void LED_OFF(){
+  int well = comm.readInt16Arg();
+  Well_LED_OFF(well);
+}
+
 void  Well_LED_ON(int well) {
   digitalWrite(Well_LED_Pins[well], HIGH);
   digitalWrite(TTL_LED_Pins[well], HIGH);
@@ -738,7 +738,7 @@ void  Well_LED_OFF(int well) {
 }
 
 void ToggleLED(){
-  int well = SerialReadNum();
+  int well = comm.readInt16Arg()
   if (well >= 0 && well <= 5){
     if (Well_LED_State[well] == false){
       Well_LED_ON(well);
@@ -752,14 +752,11 @@ void ToggleLED(){
      Print Current States
 *****************************************/
 void print_states() {
-  Serial.println("<State, LED and Pump Dur for each well: ");
+  comm.sendCmdStart(kAcknowledge);
+  comm.sendCmdArg("State, LED and Pump Dur for each well:\n");
   for (int well = 0; well < nWells; well++) {
-    char str[35];
-    sprintf(str, "<%d: State=%d, LED=%d, PumpDur=%d3\n",well+1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
-    Serial.println(str);
+    comm.sendCmdfArg("%d: State=%d, LED=%d, PumpDur=%d\n",well+1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
   }
-  Serial.println("<\n\n");
-  Serial.print("Active Cue = ");
-  Serial.println(ActiveCUE_ID);
-  Serial.print(">");
+  comm.sendCmdfArg("\nActive Cue = %d", ActiveCUE_ID);
+  comm.sendCmdEnd();
 }
