@@ -18,14 +18,13 @@
   Updated: 2/15/18
 */
 
-
 // CUE library
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
+#include <CmdMessenger.h>
 #ifdef __AVR__
 #include <avr/power.h>
-#include <CmdMessenger.h>
 #endif
 
 /*********************************
@@ -43,6 +42,7 @@ const int TTL_PulseDur = 10; // Output TTL Pulse Duration in ms
 // Default values for pump durations
 const long Pump_ON_Default[nWells]   = {6, 6, 12, 12, 12, 12};
 long Pump_ON_DUR[nWells]    = {6, 6, 12, 12, 12, 12};
+long Pump_ON_DUR_Temp[nWells] = {6, 6, 12, 12, 12, 12};
 
 /****************************
     Declaration of Arduino Pins
@@ -145,49 +145,48 @@ enum
   kAcknowledge,
   kError,
   kActivateAllWells,
-  kSelectWellToActive,
-  kSelectWellToDeActive,
+  kSelectWell_ACT,
+  kSelectWell_DeACT,
   kToggleLED,
   kLED_ON,
   kLED_OFF,
-  kSelectPumpToTurnOn,
-  kChangePumpOnDur,
+  kSelectPump_ON,
+  kChangePumpDur,
   kTurnPumpOnForXDur,
-  kSelectCueOn,
-  kTurnCueOff,
-  kPrint_states,
+  kSelectCUE_ON,
+  kTurnCUE_OFF,
+  kPrint_States,
   kSendEvent,
-  kReset_states,
+  kReset_States,
 }
 
 void attachCommandCallbacks(){
   comm.attach(OnUnknownCommand);
   comm.attach(kActivateAllWells,ActivateAllWells);
-  comm.attach(kSelectWellToActive,SelectWellToActive);
-  comm.attach(kSelectWellToDeActive,SelectWellToDeActive);
+  comm.attach(kSelectWell_ACT,SelectWell_ACT);
+  comm.attach(kSelectWell_DeACT,SelectWell_DeACT);
   comm.attach(kToggleLED,ToggleLED);
   comm.attach(kLED_ON,LED_ON);
   comm.attach(kLED_OFF,LED_OFF);
-  comm.attach(kSelectPumpToTurnOn,SelectPumpToTurnOn);
-  comm.attach(kChangePumpOnDur,ChangePumpOnDur);
+  comm.attach(kSelectPump_ON,SelectPump_ON);
+  comm.attach(kChangePumpDur,ChangePumpDur);
   comm.attach(kTurnPumpOnForXDur,TurnPumpOnForXDur);
-  comm.attach(kSelectCueOn,SelectCueOn);
-  comm.attach(kTurnCueOff,TurnCueOff);
-  comm.attach(kPrint_states,print_states);
-  comm.attach(kReset_states, reset_states);
-  comm.attach(kSendEvent, sendEvent);
+  comm.attach(kSelectCUE_ON,SelectCUE_ON);
+  comm.attach(kTurnCUE_OFF,TurnCUE_OFF);
+  comm.attach(kPrint_States,Print_States);
+  comm.attach(kReset_States, Reset_States);
+  comm.attach(kSendEvent, SendEvent);
 }
 
 void OnUnknownCommand(){
    comm.sendCmd(kError,"Command without attached callback");
 }
 
-void sendEvent(char* code, int num){
+void SendEvent(char* code, int num){
   comm.sendCmdStart(kAcknowledge);
   comm.sendCmdfArg("%s_%d",code,num);
   comm.sendCmdEnd();
 }
-
 
 /***************************************************
   Setup
@@ -280,7 +279,7 @@ void loop() {
     // Check serial input.
     comm.feedinSerialData();
     /**************************************
-      Process the wells.
+      Process wells and timers.
     ***************************************/
     for (int well = 0; well < nWells; well++) {
       WellDetectThrCheck(well);
@@ -294,9 +293,10 @@ void loop() {
       // turn off pump after Pump_ON_DUR duration
       if (Pump_State[well] == true) {
         PumpTimer[well] = millis() - PumpTimeRef[well];
-        if (PumpTimer[well] >= Pump_ON_DUR[well]) {
+        if (PumpTimer[well] >= Pump_ON_DUR_Temp[well]) {
           TurnOFFPump(well);
-          sendEventCode(RR, well + 1);
+          SendEventCode(RR, well + 1);
+          Pump_ON_DUR_Temp[well] = Pump_ON_DUR[well];
         }
       }
       // TTL IRs Timer reset
@@ -330,14 +330,12 @@ void loop() {
         ActiveCUE_ID = 0;
         ChangeCueColor(NP_off);
       }
-    }
+    } //cue Processing
   } else if (SerialState) {
     SerialState = false;
-    reset_states();
-    TurnCueOff();
-  } //cue Processing
+    Reset_States();
+  }
 } // end of Main loop()
-
 
 /**********************************************************
 ***********************************************************
@@ -401,7 +399,7 @@ void WellDetectThrCheck(int well) {
           Well_Detect_State[well] = true;
           ResetDetectTimer(well);
           Well_IR_RefracTimeRef[well] = millis();
-          sendEventCode(DD, well + 1);
+          SendEvent(DD, well + 1);
 
           // send TTL for detection
           TTL_IR_Detect_State[well] = true;
@@ -420,109 +418,28 @@ void ResetDetectTimer(int well) {
 }
 
 /****************************************
-      Serial IO processing.
-*****************************************/
-// Process serial command input.
-void ProcessInput() {
-  if (Serial.available()) {
-    char inchar = Serial.read();
-    switch (inchar) {
-      // well input
-      case 'a':
-        ActivateAllWells();
-        break;
-      case 'w':
-        SelectWellToActive();
-        break;
-      case 'l':
-        // toggle LED On/Off
-        ToggleLED();
-        break;
-      case 'd':
-        SelectWellToDeActive();
-        break;
-      case 'p':
-        SelectPumpToTurnOn();
-        break;
-      case 'z':
-        ChangePumpOnDur();
-        break;
-      case 's':
-        print_states();
-        break;
-      case 'r':
-        reset_states();
-        Serial.print("<All wells inactivated.");
-        break;
-      case 'c':
-        SelectCueOn();
-        break;
-      case 'y':
-        TurnCueOff();
-        break;
-      case 'q':
-        reset_states();
-        break;
-      default:
-        Serial.println("<IncorrectSuffix");
-        Serial.print(">");
-        break;
-    }
-  }
-}
-
-// Read serial number
-int SerialReadNum() {
-  unsigned long intimer = millis();
-  while (intimer >= (millis() - 5000)) {
-    if (Serial.available()) {
-      int num = Serial.read();
-      num = num - 48;
-      if (num >= 0 && num <= 9) {
-        return num;
-      }
-      else {
-        Serial.print("<Ard. Invalid Input, expected int [0-9].");
-        Serial.println(num);
-        Serial.print(">");
-        return -1;
-      }
-    }
-  }
-  Serial.println("<\nArd. Timed out to input number.");
-  Serial.print(">");
-  return -1;
-}
-
-// send event code
-void sendEventCode(char* code, int num) {
-  char str[10];
-  sprintf(str, "<EC_%s%d", code, num);
-  Serial.println(str);
-  Serial.println(">");
-}
-
-/****************************************
               Cue Control
 *****************************************/
-int SelectCueOn() {
-  int cue = SerialReadNum();
+void SelectCUE_ON() {
+  int cue = comm.readInt16Arg();
   if (cue >= 1 && cue <= 9) {
     ActiveCUE_ID = cue;
-    sendEventCode(CA, cue);
+    SendEvent(CA, cue);
+    comm.sendCmd(kAcknowledge);
   }
   else {
     ActiveCUE_ID = 0;
+    comm.sendCmd(kError, 'Invalid Cue.')
   }
   SetCueParams(ActiveCUE_ID);
-  return ActiveCUE_ID;
 }
 
-void TurnCueOff() {
-  sendEventCode(CD, ActiveCUE_ID);
+void TurnCUE_OFF() {
   SetCueParams(0);
   CUE_TimeRef = MAX_TIME_UL;
   CUE_Timer   = 0;
+  SendEvent(CD, ActiveCUE_ID);
+  comm.sendCmd(kAcknowledge);
 }
 
 void SetCueParams(int CueNum) {
@@ -577,7 +494,7 @@ void SetCueParams(int CueNum) {
       ActiveCueColor = NP_off;
       ActiveCUE_Freq = 0;
       ActiveCUE_HalfCycle = 0;
-      TTL_CUE_ID = 3;
+      TTL_CUE_ID = -1;
       break;
   }
   ChangeCueColor(ActiveCueColor);
@@ -602,13 +519,14 @@ void ChangeCueColor(uint32_t col) {
 /****************************************
       Pump/Reward Control
 *****************************************/
-int SelectPumpToTurnOn() {
+void SelectPump_ON() {
   int well = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
-    return well;
+    comm.sendCmd(kAcknowledge);
+  } else {
+    comm.sendCmd(kError, 'Invalid Well.')
   }
-  return -1;
 }
 
 void Deliver_Reward(int well) {
@@ -633,7 +551,7 @@ void TurnOFFPump(int well) {
   PumpTimer[well] = 0;
 }
 
-void ChangePumpOnDur() {
+void ChangePumpDur() {
   int well = comm.readInt16Arg();
   int dur = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
@@ -641,11 +559,28 @@ void ChangePumpOnDur() {
   }
 }
 
-void
+void TurnPumpOnForXDur(){
+  int well = comm.readInt16Arg();
+  int dur = comm.readInt16Arg();
+  if (well >= 0 && well <= 5) {
+    if (dur>0 && dur<=250){
+      Pump_ON_DUR_Temp[well] = dur;
+      comm.sendCmd(kAcknowledge);
+      Deliver_Reward(well);
+    } else {
+      comm.sendCmd(kError,'Invalid Pump Duration.');
+    }
+    comm.sendCmd(kError, 'Invalid Well.')
+  }
+}
 
 void SetPumpDur(int well, int dur) {
   if (dur>0 && dur <=250){
     Pump_ON_DUR[well] = dur;
+    Pump_ON_DUR_Temp[well] = dur;
+    comm.sendCmdStart(kAcknowledge);
+    comm.sendCmdfArg('Changed Duration on well %d, dur = %d',well,dur);
+    comm.sendCmdEnd();
   } else {
     Pump_ON_DUR[well] = Pump_ON_Default[well];
     comm.sendCmd(kError, 'Invalid Pump Duration');
@@ -655,22 +590,24 @@ void SetPumpDur(int well, int dur) {
 /****************************************
    Activate/Deactivate wells.
 *****************************************/
-int SelectWellToActive() {
+void SelectWell_ACT() {
   int well = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
-    return well;
+    comm.sendCmd(kAcknowledge);
+  } else {
+    comm.send(kError,'Invalid Well.')
   }
-  return -1;
 }
 
-int SelectWellToDeActive() {
+void SelectWell_DeACT() {
   int well = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
-    return well;
+    comm.sendCmd(kAcknowledge);
+  } else{
+    comm.sendCmd(kError,'Invalid Well.');
   }
-  return -1;
 }
 
 void ActivateWell(int well) {
@@ -685,8 +622,7 @@ void ActivateWell(int well) {
   Well_IR_RefracTimeRef[well] = 0;
   ResetDetectTimer(well);
 
-  //Deliver_Reward(well);
-  sendEventCode(AW, well + 1);
+  SendEventCode(AW, well + 1);
 }
 
 void DeActivateWell(int well) {
@@ -694,23 +630,23 @@ void DeActivateWell(int well) {
   Well_Active_TimeRef[well] = MAX_TIME_UL;
   Well_Active_Timer[well] = 0;
   Well_LED_OFF(well);
-  sendEventCode(DW, well + 1);
+  SendEventCode(DW, well + 1);
 }
 
 void ActivateAllWells() {
   for (int well = 0; well < nWells; well++) {
     Well_LED_ON(well);
     ActivateWell(well);
-    //Deliver_Reward(well);
   }
+  comm.sendCmd(kAcknowledge);
 }
 
-void reset_states() {
+void Reset_States() {
   for (int well = 0; well < nWells; well++) {
     DeActivateWell(well);
     TurnOFFPump(well);
   }
-  TurnCueOff();
+  TurnCUE_OFF();
 }
 
 /****************************************
@@ -718,11 +654,21 @@ void reset_states() {
 *****************************************/
 void LED_ON(){
   int well = comm.readInt16Arg();
-  Well_LED_ON(well);
+  if (well >=0 && well <= 5){
+    Well_LED_ON(well);
+    comm.sendCmd(kAcknowledge);
+  } else{
+    comm.sendCmd(kError,'Invalid Well');
+  }
 }
 void LED_OFF(){
   int well = comm.readInt16Arg();
-  Well_LED_OFF(well);
+  if (well >=0 && well <= 5){
+    Well_LED_OFF(well);
+    comm.sendCmd(kAcknowledge);
+  } else{
+    comm.sendCmd(kError,'Invalid Well');
+  }
 }
 
 void  Well_LED_ON(int well) {
@@ -745,13 +691,16 @@ void ToggleLED(){
     }  else {
       Well_LED_OFF(well);
     }
+    comm.sendCmd(kAcknowledge);
+  } else {
+    comm.sendCmd(kError,'Invalid Well');
   }
 }
 
 /****************************************
      Print Current States
 *****************************************/
-void print_states() {
+void Print_States() {
   comm.sendCmdStart(kAcknowledge);
   comm.sendCmdArg("State, LED and Pump Dur for each well:\n");
   for (int well = 0; well < nWells; well++) {
