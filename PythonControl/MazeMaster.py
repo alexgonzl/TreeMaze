@@ -71,7 +71,8 @@ def getCmdLineInput(arduinoEv,interruptEv):
                 print ("Enter 'C#', to queue a cue for the next trial.")
                 print ("Enter 'S', to check state machine status")
                 print ("Enter 'N', to start a new trial.")
-                print ("Enter 'M#', to manually detect a well.")  
+                print ("Enter 'M#', to manually detect a well.")
+                print ("Enter 'P%', to change switch probability.")
                 print ("Enter 'Stop', to stop automation of well sequencing.")
                 print("------------------------------------------------------")
                 print ("Enter 'a','r' activate / reset all")
@@ -131,6 +132,10 @@ def getCmdLineInput(arduinoEv,interruptEv):
                             w = int(CL_in[1])
                             if w>=1 and w<=6:
                                 MS.DETECT(w)
+                        elif (CL_in[0]=='P'):
+                            pr = int(CL_in[1:])
+                            if pr>=0 and w<=100:
+                                MS.SwitchProb = float(pr)/100.0
                         elif (CL_in=='Stop'):
                             MS.STOP()
 

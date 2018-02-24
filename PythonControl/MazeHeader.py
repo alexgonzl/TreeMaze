@@ -245,7 +245,7 @@ class Maze(object):
                 self.PrevDetectGoalWell = -1
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
-                #self.SwitchProb = 0.25
+                self.SwitchProb = 0
 
                 if self.Protocol[:2] in ['T3','T4','T5']:
                     while True:
@@ -385,7 +385,8 @@ class Maze(object):
     def STATUS(self):
         print()
         print('======= State Machine Status =========')
-        print('Protocol = ',self.Protocol, ' - ', self.SwitchProb)
+        print('Protocol = ',self.Protocol)
+        print('Switch Prob = ', self.SwitchProb)
         print('Active Cue = ', self.Act_Cue)
         print('Queued Cue = ', self.Queued_Cue)
         print('Current State = ', self.state)
@@ -411,7 +412,7 @@ class Maze(object):
 
     def printSummary(self):
         if hasattr(self.headFile,'write'):
-            self.headFile.write('Switch Probability = %i \n' % (self.SwitchProb))
+            self.headFile.write('Last Cue Switch Probability = %i \n' % (self.SwitchProb))
             self.headFile.write('\n\n====================================================\n\n')
             self.headFile.write('Session Summary:\n')
             self.headFile.write('Session Time = %f \n' % (time.time() - self.time_ref))
@@ -686,7 +687,7 @@ class Maze(object):
         self.TrialCounter +=1
         if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             rr = random.random()
-            print('Switch prob = ',rr)
+            #print('Switch prob = ',rr)
             if rr < self.SwitchProb: ## switch cue
                 if self.Act_Cue==self.ValidCues[0]:                 
                     self.Queued_Cue = copy.copy(self.ValidCues[1])
