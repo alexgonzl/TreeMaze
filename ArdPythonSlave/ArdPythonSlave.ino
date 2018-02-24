@@ -360,6 +360,7 @@ void ProcessInput() {
         break;
       default:
         Serial.println("<IncorrectSuffix");
+        Serial.println(inchar);
         Serial.print(">");
         break;
     }
