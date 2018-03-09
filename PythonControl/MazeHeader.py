@@ -11,68 +11,9 @@ from collections import Counter
 # GPIOChans = [33,35,36,37,38,40]
 # IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
 @add_state_features(Timeout)
+
 class Machine2(Machine):
     pass
-
-class TrialSeq(object):
-    def __init__(self,N):
-        _CueTypes = [5,6]
-        _nCueTypes = len(_CueTypes)
-        _GoalIDs = [3,4,5,6]
-        _GoalIDsByCue = {5:[3,4],6:[5,6]}
-        _nGoalsByCue = {k: len(v) for k, v in _GoalIDsByCue.items()}
-
-        # increase N if not divisible by number of conditions
-        _nConds = 4
-        while N%_nConds != 0:
-            N = N+1
-
-        # seq refers to the cue sequence, indicating trial type.
-        _nTrialsPerCue = int(N/_nCueTypes)
-        _seq = _CueTypes*_nTrialsPerCue # create sequence of length N for CueTypes
-        _seq = np.array(np.random.permutation(_seq))
-
-        # assign goal to cues
-        _GoalSeq = np.zeros(N)-1
-        for cue in _CueTypes:
-            _sublist = _seq==cue
-            _nTrialsPerCueGoal = int(_nTrialsPerCue/_nGoalsByCue[cue])
-            _cuegoalseq = np.array(_GoalIDsByCue[cue]*_nTrialsPerCueGoal)
-            _cuegoalseq = np.random.permutation(_cuegoalseq)
-            _GoalSeq[_sublist] = _cuegoalseq
-
-        # another implementation of goal allocation, no restrain for # of goal
-        #         for ii in range(N):
-        #             for jj in _CueTypes:
-        #                 rr = random.random():
-        #                 for kk in range(_GoalIDsByCue[jj]):
-        #                     if rr < (kk+1)*(1/_nGoalsByCue[jj]):
-        #                         self.GoalSeq[ii] = _GoalIDsByCue[jj][kk]
-        #                         break
-        # del temp variables
-        del _sublist, _cuegoalseq
-
-        # visible variables
-        self.N = N
-        self.CueSeq = _seq
-        self.GoalSeq = _GoalSeq.astype(int)
-        self.CueIDs = _CueTypes
-        self.GoalIDsByCue = _GoalIDsByCue
-        self.CurrentTrial = 0
-
-    def CueID(self):
-        return self.CueSeq[self.CurrentTrial]
-    def GoalID(self):
-        return self.GoalSeq[self.CurrentTrial]
-    def NextTrial(self):
-        self.CurrentTrial = self.CurrentTrial + 1
-
-    def SeqCounts(self):
-        print("Number of trials = ", self.N)
-        print("Trial Cue Counts: ")
-        print(Counter(self.CueSeq))
-        print("Trial Goal Counts: ")
-        print(Counter(self.GoalSeq))
 
 def close(MS):
     if MS.datFile:
@@ -331,7 +272,7 @@ class Maze(object):
     def STOP(self):
         if self.PythonControlFlag:
             self.PythonControlFlag=False
-            print('Automatic control disabled.') 
+            print('Automatic control disabled.')
             self.STATUS()
             self.stop()
             self.Act_Well.fill(False)
