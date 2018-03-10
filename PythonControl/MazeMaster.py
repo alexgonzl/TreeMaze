@@ -134,7 +134,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                 MS.DETECT(w)
                         elif (CL_in[0]=='P'):
                             pr = int(CL_in[1:])
-                            if pr>=0 and w<=100:
+                            if pr>=0 and pr<=100:
                                 MS.SwitchProb = float(pr)/100.0
                         elif (CL_in=='Stop'):
                             MS.STOP()
