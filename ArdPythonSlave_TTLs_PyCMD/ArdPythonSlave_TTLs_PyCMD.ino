@@ -28,7 +28,7 @@
 #endif
 
 /*********************************
- Program constants
+  Program constants
 **********************************/
 const long BAUD_RATE = 115200; // baud rate for serial communication. must match contro script
 const long MAX_TIME_UL = 4294967295UL;
@@ -65,15 +65,15 @@ const int Well_IR_Pins[nWells] = {2, 3, 21, 20, 19, 18};
 // LED outout pins LEDs
 const int Well_LED_Pins[nWells] = {40, 41, 42, 43, 44, 45};
 // RPGIO IR detect outputs to RPI
-const int RPGIO_IR_Detect[nWells] = {47,48,49,50,51,52};
+const int RPGIO_IR_Detect[nWells] = {47, 48, 49, 50, 51, 52};
 
 /******************************************
         Setup of Neopixel Matrix
 *******************************************/
 Adafruit_NeoMatrix NeoPix = Adafruit_NeoMatrix(16, 16, CUEs1_PIN,
-  NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
-  NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
-  NEO_GRB            + NEO_KHZ800);
+                            NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
+                            NEO_MATRIX_COLUMNS + NEO_MATRIX_PROGRESSIVE,
+                            NEO_GRB            + NEO_KHZ800);
 
 const uint32_t  NP_blueviolet = NeoPix.Color(120, 0, 110);
 const uint32_t  NP_green = NeoPix.Color(0, 120, 0);
@@ -164,30 +164,31 @@ enum
   kReset_States,      // 16, input
 };
 
-void attachCommandCallbacks(){
+void attachCommandCallbacks() {
   comm.attach(OnUnknownCommand);
-  comm.attach(kActivateAllWells,ActivateAllWells);
-  comm.attach(kSelectWell_ACT,SelectWell_ACT);
-  comm.attach(kSelectWell_DeACT,SelectWell_DeACT);
-  comm.attach(kToggleLED,ToggleLED);
-  comm.attach(kLED_ON,LED_ON);
-  comm.attach(kLED_OFF,LED_OFF);
-  comm.attach(kSelectPump_ON,SelectPump_ON);
-  comm.attach(kChangePumpDur,ChangePumpDur);
-  comm.attach(kTurnPumpOnForXDur,TurnPumpOnForXDur);
-  comm.attach(kSelectCUE_ON,SelectCUE_ON);
-  comm.attach(kTurnCUE_OFF,TurnCUE_OFF);
-  comm.attach(kPrint_States,Print_States);
+  comm.attach(kActivateAllWells, ActivateAllWells);
+  comm.attach(kSelectWell_ACT, SelectWell_ACT);
+  comm.attach(kSelectWell_DeACT, SelectWell_DeACT);
+  comm.attach(kToggleLED, ToggleLED);
+  comm.attach(kLED_ON, LED_ON);
+  comm.attach(kLED_OFF, LED_OFF);
+  comm.attach(kSelectPump_ON, SelectPump_ON);
+  comm.attach(kChangePumpDur, ChangePumpDur);
+  comm.attach(kTurnPumpOnForXDur, TurnPumpOnForXDur);
+  comm.attach(kSelectCUE_ON, SelectCUE_ON);
+  comm.attach(kTurnCUE_OFF, TurnCUE_OFF);
+  comm.attach(kPrint_States, Print_States);
   comm.attach(kReset_States, Reset_States);
 }
 
-void OnUnknownCommand(){
-   comm.sendCmd(kError,"Command without attached callback");
+void OnUnknownCommand() {
+  comm.sendCmd(kError, "Command without attached callback");
 }
 
-void SendEventCode(char* code, int num){
+void SendEventCode(char* code, int num) {
   comm.sendCmdStart(kSendEvent);
-  comm.sendCmdfArg("%s_%d",code,num);
+  char str[6]; 
+  comm.sendCmdfArg(str,"%s_%d", code, num);
   comm.sendCmdEnd();
 }
 
@@ -222,7 +223,7 @@ void setup() {
     digitalWrite(Well_LED_Pins[well], LOW);
 
     // RPGIO IR detect outputs
-    pinMode(RPGIO_IR_Detect[well],OUTPUT);
+    pinMode(RPGIO_IR_Detect[well], OUTPUT);
     digitalWrite(RPGIO_IR_Detect[well], LOW);
 
     // IR inputs
@@ -234,22 +235,22 @@ void setup() {
 
     // TTL LEDs Outputs
     pinMode(TTL_LED_Pins[well], OUTPUT);
-    digitalWrite(TTL_LED_Pins[well],LOW);
+    digitalWrite(TTL_LED_Pins[well], LOW);
 
     // TTL IR Detects
     pinMode(TTL_IR_Pins[well], OUTPUT);
-    digitalWrite(TTL_IR_Pins[well],LOW);
+    digitalWrite(TTL_IR_Pins[well], LOW);
   }
 
   // Cues
-  for (int cue = 0; cue < nCues; cue++){
+  for (int cue = 0; cue < nCues; cue++) {
     pinMode(TTL_CUE_Pins[cue], OUTPUT);
-    digitalWrite(TTL_CUE_Pins[cue],LOW);
+    digitalWrite(TTL_CUE_Pins[cue], LOW);
   }
 
   // Reward Delivered
   pinMode(TTL_RD_Pin, OUTPUT);
-  digitalWrite(TTL_RD_Pin,LOW);
+  digitalWrite(TTL_RD_Pin, LOW);
 
   // Attach interrupts independently
   attachInterrupt(digitalPinToInterrupt(Well_IR_Pins[0]), IR_Detect1, CHANGE);
@@ -270,7 +271,7 @@ void setup() {
   comm.printLfCr();
   attachCommandCallbacks();
 
-  comm.sendCmd(kAcknowledge,"Arduino has started!");
+  comm.sendCmd(kAcknowledge, "Arduino has started!");
 } // end setup
 
 //Main
@@ -303,11 +304,11 @@ void loop() {
         }
       }
       // TTL IRs Timer reset
-      if (TTL_IR_Detect_State[well] == true){
-        if ( (millis()-TTL_IR_Detect_Timer[well])>=TTL_PulseDur ){
+      if (TTL_IR_Detect_State[well] == true) {
+        if ( (millis() - TTL_IR_Detect_Timer[well]) >= TTL_PulseDur ) {
           TTL_IR_Detect_State[well] = false;
           TTL_IR_Detect_Timer[well] = MAX_TIME_UL;
-          digitalWrite(TTL_IR_Pins[well],LOW);
+          digitalWrite(TTL_IR_Pins[well], LOW);
         }
       }
     } // well loop
@@ -327,9 +328,9 @@ void loop() {
           ChangeCueColor(ActiveCueColor);
         }
       }
-    } else if (ActiveCUE_ID==9){
+    } else if (ActiveCUE_ID == 9) {
       CUE_Timer = millis() - CUE_TimeRef;
-      if (CUE_Timer > CUE9_TimeLimit){
+      if (CUE_Timer > CUE9_TimeLimit) {
         ActiveCUE_ID = 0;
         ChangeCueColor(NP_off);
       }
@@ -386,13 +387,13 @@ void IR_Detect_ReportChange(int well) {
 
     TTL_IR_Detect_State[well] = false;
     TTL_IR_Detect_Timer[well] = MAX_TIME_UL;
-    digitalWrite(TTL_IR_Pins[well],LOW);
+    digitalWrite(TTL_IR_Pins[well], LOW);
   }
 }
 
 // Detection Threshold
 void WellDetectThrCheck(int well) {
-  if ((millis() - Well_IR_RefracTimeRef[well])>DETECT_REFRAC_THR) {
+  if ((millis() - Well_IR_RefracTimeRef[well]) > DETECT_REFRAC_THR) {
     if (Well_Detect_State[well] == false) {
       if (Well_IR_State[well] == true) {
 
@@ -407,7 +408,7 @@ void WellDetectThrCheck(int well) {
           // send TTL for detection
           TTL_IR_Detect_State[well] = true;
           TTL_IR_Detect_Timer[well] = millis();
-          digitalWrite(TTL_IR_Pins[well],HIGH);
+          digitalWrite(TTL_IR_Pins[well], HIGH);
         }
       }
     }
@@ -432,7 +433,7 @@ void SelectCUE_ON() {
   }
   else {
     ActiveCUE_ID = 0;
-    comm.sendCmd(kError, 'Invalid Cue.');
+    comm.sendCmd(kError, "Invalid Cue.");
   }
   SetCueParams(ActiveCUE_ID);
 }
@@ -501,16 +502,16 @@ void SetCueParams(int CueNum) {
       break;
   }
   ChangeCueColor(ActiveCueColor);
-  if (TTL_CUE_ID>=0) {
-    digitalWrite(TTL_CUE_Pins[TTL_CUE_ID],HIGH);
+  if (TTL_CUE_ID >= 0) {
+    digitalWrite(TTL_CUE_Pins[TTL_CUE_ID], HIGH);
   }
 }
 
 void ChangeCueColor(uint32_t col) {
   if (col == NP_off) {
     NeoPix.fillScreen(0);
-    for (int cue = 0; cue < nCues; cue++){
-      digitalWrite(TTL_CUE_Pins[cue],LOW);
+    for (int cue = 0; cue < nCues; cue++) {
+      digitalWrite(TTL_CUE_Pins[cue], LOW);
     }
   } else {
     NeoPix.fillScreen(col);
@@ -529,7 +530,7 @@ void SelectPump_ON() {
     TurnOnPump(well);
     comm.sendCmd(kAcknowledge);
   } else {
-    comm.sendCmd(kError, 'Invalid Well.');
+    comm.sendCmd(kError, "Invalid Well.");
   }
 }
 
@@ -540,7 +541,7 @@ void Deliver_Reward(int well) {
 void TurnOnPump(int well) {
   // set pump to on & set pump timer
   digitalWrite(Pumps_Pins[well], Pump_ON);
-  digitalWrite(TTL_RD_Pin,HIGH);
+  digitalWrite(TTL_RD_Pin, HIGH);
   Pump_State[well] = true;
   PumpTimeRef[well] = millis();
   PumpTimer[well] = 0;
@@ -549,7 +550,7 @@ void TurnOnPump(int well) {
 // turn off pump and reset pump timers
 void TurnOFFPump(int well) {
   digitalWrite(Pumps_Pins[well], Pump_OFF);
-  digitalWrite(TTL_RD_Pin,LOW);
+  digitalWrite(TTL_RD_Pin, LOW);
   Pump_State[well] = false;
   PumpTimeRef[well] = MAX_TIME_UL;
   PumpTimer[well] = 0;
@@ -559,35 +560,36 @@ void ChangePumpDur() {
   int well = comm.readInt16Arg();
   int dur = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
-    SetPumpDur(well,dur);
+    SetPumpDur(well, dur);
   }
 }
 
-void TurnPumpOnForXDur(){
+void TurnPumpOnForXDur() {
   int well = comm.readInt16Arg();
   int dur = comm.readInt16Arg();
   if (well >= 0 && well <= 5) {
-    if (dur>0 && dur<=250){
+    if (dur > 0 && dur <= 250) {
       Pump_ON_DUR_Temp[well] = dur;
       comm.sendCmd(kAcknowledge);
       Deliver_Reward(well);
     } else {
-      comm.sendCmd(kError,'Invalid Pump Duration.');
+      comm.sendCmd(kError, "Invalid Pump Duration.");
     }
-    comm.sendCmd(kError, 'Invalid Well.');
+    comm.sendCmd(kError, "Invalid Well.");
   }
 }
 
 void SetPumpDur(int well, int dur) {
-  if (dur>0 && dur <=250){
+  if (dur > 0 && dur <= 250) {
     Pump_ON_DUR[well] = dur;
     Pump_ON_DUR_Temp[well] = dur;
     comm.sendCmdStart(kAcknowledge);
-    comm.sendCmdfArg('Changed Duration on well %d, dur = %d',well,dur);
+    char str[40];
+    comm.sendCmdfArg(str,"Changed Duration on well %d, dur = %d", well, dur);
     comm.sendCmdEnd();
   } else {
     Pump_ON_DUR[well] = Pump_ON_Default[well];
-    comm.sendCmd(kError, 'Invalid Pump Duration');
+    comm.sendCmd(kError, "Invalid Pump Duration");
   }
 }
 
@@ -600,7 +602,7 @@ void SelectWell_ACT() {
     ActivateWell(well);
     comm.sendCmd(kAcknowledge);
   } else {
-    comm.sendCmd(kError,'Invalid Well.');
+    comm.sendCmd(kError, "Invalid Well.");
   }
 }
 
@@ -609,8 +611,8 @@ void SelectWell_DeACT() {
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
     comm.sendCmd(kAcknowledge);
-  } else{
-    comm.sendCmd(kError,'Invalid Well.');
+  } else {
+    comm.sendCmd(kError, "Invalid Well.");
   }
 }
 
@@ -621,7 +623,7 @@ void ActivateWell(int well) {
 
   Well_IR_State[well] = false;
   Well_Detect_State[well] = false;
-  digitalWrite(TTL_IR_Pins[well],LOW);
+  digitalWrite(TTL_IR_Pins[well], LOW);
 
   Well_IR_RefracTimeRef[well] = 0;
   ResetDetectTimer(well);
@@ -656,22 +658,22 @@ void Reset_States() {
 /****************************************
           Well LED functions
 *****************************************/
-void LED_ON(){
+void LED_ON() {
   int well = comm.readInt16Arg();
-  if (well >=0 && well <= 5){
+  if (well >= 0 && well <= 5) {
     Well_LED_ON(well);
     comm.sendCmd(kAcknowledge);
-  } else{
-    comm.sendCmd(kError,'Invalid Well');
+  } else {
+    comm.sendCmd(kError, "Invalid Well");
   }
 }
-void LED_OFF(){
+void LED_OFF() {
   int well = comm.readInt16Arg();
-  if (well >=0 && well <= 5){
+  if (well >= 0 && well <= 5) {
     Well_LED_OFF(well);
     comm.sendCmd(kAcknowledge);
-  } else{
-    comm.sendCmd(kError,'Invalid Well');
+  } else {
+    comm.sendCmd(kError, "Invalid Well");
   }
 }
 
@@ -687,17 +689,17 @@ void  Well_LED_OFF(int well) {
   Well_LED_State[well] = false;
 }
 
-void ToggleLED(){
+void ToggleLED() {
   int well = comm.readInt16Arg();
-  if (well >= 0 && well <= 5){
-    if (Well_LED_State[well] == false){
+  if (well >= 0 && well <= 5) {
+    if (Well_LED_State[well] == false) {
       Well_LED_ON(well);
     }  else {
       Well_LED_OFF(well);
     }
     comm.sendCmd(kAcknowledge);
   } else {
-    comm.sendCmd(kError,'Invalid Well');
+    comm.sendCmd(kError, "Invalid Well");
   }
 }
 
@@ -707,9 +709,11 @@ void ToggleLED(){
 void Print_States() {
   comm.sendCmdStart(kStatus);
   comm.sendCmdArg("State, LED and Pump Dur for each well:\n");
+  char str1[40];
   for (int well = 0; well < nWells; well++) {
-    comm.sendCmdfArg("%d: State=%d LED=%d PumpDur=%d\n",well+1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
+    comm.sendCmdfArg(str1,"%d: State=%d LED=%d PumpDur=%d\n", well + 1, Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
   }
-  comm.sendCmdfArg("\nActive Cue = %d", ActiveCUE_ID);
+  char str2[20];
+  comm.sendCmdfArg(str2,"Active Cue = %d", ActiveCUE_ID);
   comm.sendCmdEnd();
 }

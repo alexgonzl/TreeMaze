@@ -429,7 +429,7 @@ class Maze(object):
                 self.CorrectTrialFlag = False
                 self.IncorrectTrialFlag = False
 
-                if self.Protocol not in ['T3e','T3f','T3g']:
+                if self.Protocol not in ['T3e','T3f','T3g','T3h']:
                     ## reset rewards duration if animal didn't repeat
                     if self.ChangedRewardFlag:
                         # reset to reward duration to  original
@@ -531,7 +531,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return random.random()<0.5
             else:
                 return True
@@ -544,7 +544,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return True
             else:
                 return True
@@ -564,7 +564,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return random.random()<0.5
             else:
                 return True
@@ -577,7 +577,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return True
             else:
                 return True
@@ -626,7 +626,7 @@ class Maze(object):
     # Trial Processing
     def next_trial(self):
         self.TrialCounter +=1
-        if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
+        if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T3h','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             rr = random.random()
             #print('Switch prob = ',rr)
             if rr < self.SwitchProb: ## switch cue
@@ -721,7 +721,7 @@ def MS_Setup(protocol,timeoutdur):
         {'trigger':'D0','source':'*','dest':'='}
         ]
 
-        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
+        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
             print('Undefined protocol. Defaulting to T2.')
             protocol = 'T2'
 
@@ -788,7 +788,10 @@ def MS_Setup(protocol,timeoutdur):
             ValidCues = [5,6]
 
         elif protocol in ['T3f']:
-            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals
+               depending on the cue with goal without LEDs on the wells with the cue staying ON. On left trials, the animal can
+               receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one
+               rewarded goal location. """
 
             transitions = transitions + [
                 ## goals on the right
@@ -808,7 +811,7 @@ def MS_Setup(protocol,timeoutdur):
             ValidCues = [5,6]
 
         elif protocol in ['T3g']:
-            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+            """T3 same as f with Cues having different flashing frequencies. Colors stayed the same."""
 
             transitions = transitions + [
                 ## goals on the right
@@ -818,6 +821,25 @@ def MS_Setup(protocol,timeoutdur):
                 ## goals on the left
                 {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['rewardDelivered2']},
                 {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['rewardDelivered2']},
+
+                ## incorrect choices
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'}]
+            ValidCues = [1,4]
+        elif protocol in ['T3h']:
+            """T3 same as g with LEDs presented on the wells. """
+
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['LED_ON','rewardDelivered2']},
+
+                ## goals on the left
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['LED_ON','rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},

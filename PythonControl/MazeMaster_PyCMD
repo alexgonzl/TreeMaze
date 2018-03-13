@@ -24,7 +24,7 @@ def readArduino(arduinoEv, interruptEv):
                         MS.DETECT(detectNum)
                         print(data)
                     if MS.saveFlag:
-                        logEvent(data,MS))
+                        logEvent(data,MS)
             except:
                 print ("error processing data", sys.exc_info()[0])
                 pass

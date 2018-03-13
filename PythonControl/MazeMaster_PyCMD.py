@@ -6,8 +6,8 @@
 ###
 
 import threading
-from MazeHeader import *
-PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
+from MazeHeader_PyCMD import *
+PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
@@ -15,42 +15,22 @@ def readArduino(arduinoEv, interruptEv):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
-            time.sleep(0.001)
-            data = MS.Comm.ReadLine()
+            time.sleep(0.1)
             try:
-                if data:
+                data = MS.Comm.ReceiveData()
+                if data[0:2] in ["RE","DE","AW","DW","CA","CD"]:
+                    print(data)
                     try:
-                        if isinstance(data,bytes):
-                            x = data.decode('utf-8')
-                            if (x[0]=='<'):
-                                if (x[1:4]=="EC_"):
-                                    try:
-                                        code = x[4:]
-                                        if MS.PythonControlFlag and code[0:2]=="DE":
-                                            detectNum = int(code[2])
-                                            MS.DETECT(detectNum)
-                                            print (code)
-                                        if MS.saveFlag:
-                                            logEvent(code,MS)
-                                    except:
-                                        print ("error", sys.exc_info()[0])
-                                else:
-                                    print (x[1:])
-                            elif (x[0]=='>'):
-                                arduinoEv.set()
-                            else:
-                                print (x)
-                        else:
-                            if data[0]=='>':
-                                arduinoEv.set()
-                            else:
-                                pass
-                                print (data)
+                        if MS.PythonControlFlag and data[0:2]=="DE":
+                            detectNum = int(data[2])
+                            MS.DETECT(detectNum)
+                            print(data)
                     except:
-                        #print ("error", sys.exc_info()[0])
-                        pass
+                        print("fsfre")
+                    if MS.saveFlag:
+                        logEvent(data,MS)
             except:
-                #print ("error", sys.exc_info()[0])
+                print ("error processing data", sys.exc_info())
                 pass
         else:
             break
@@ -71,8 +51,6 @@ def getCmdLineInput(arduinoEv,interruptEv):
                 print ("Enter 'C#', to queue a cue for the next trial.")
                 print ("Enter 'S', to check state machine status")
                 print ("Enter 'N', to start a new trial.")
-                print ("Enter 'M#', to manually detect a well.")
-                print ("Enter 'P%', to change switch probability.")
                 print ("Enter 'Stop', to stop automation of well sequencing.")
                 print("------------------------------------------------------")
                 print ("Enter 'a','r' activate / reset all")
@@ -128,14 +106,6 @@ def getCmdLineInput(arduinoEv,interruptEv):
                         elif (CL_in=='N'):
                             print("Starting a new trial.")
                             MS.NEW_TRIAL()
-                        elif (CL_in[0]=='M'):
-                            w = int(CL_in[1])
-                            if w>=1 and w<=6:
-                                MS.DETECT(w)
-                        elif (CL_in[0]=='P'):
-                            pr = int(CL_in[1:])
-                            if pr>=0 and pr<=100:
-                                MS.SwitchProb = float(pr)/100.0
                         elif (CL_in=='Stop'):
                             MS.STOP()
 
@@ -166,7 +136,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                     MS.Comm.DeliverReward(well)
                                     if MS.PythonControlFlag:
                                         MS.rewardDelivered(well)
-                                        
+
                                 elif ins=='l':
                                     MS.Comm.ToggleLED(well)
                                 elif ins=='z':
