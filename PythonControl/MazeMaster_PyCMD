@@ -6,8 +6,8 @@
 ###
 
 import threading
-from MazeHeader import *
-PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
+from MazeHeader_PyCMD import *
+PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d','T5Ra', 'T5Rb','T5Rc','T5La', 'T5Lb', 'T5Lc']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
@@ -17,14 +17,21 @@ def readArduino(arduinoEv, interruptEv):
             # reduce cpu load by reading arduino slower
             time.sleep(0.001)
             try:
-                data = MS.Comm.ReceiveData()
-                if data != "NONE":
-                    if MS.PythonControlFlag and data[0:2]=="DE":
-                        detectNum = int(data[2])
-                        MS.DETECT(detectNum)
-                        print(data)
-                    if MS.saveFlag:
-                        logEvent(data,MS)
+                ardSignals,data = MS.Comm.ReceiveData()
+                cnt = 0
+                for sig in ardSignals:
+                    dat = data[cnt]:
+                    if sig =='2': # event signal
+                        if MS.PythonControlFlag and dat[0:2]=="DE":
+                            detectNum = int(dat[2])
+                            MS.DETECT(detectNum)
+                            print(dat)
+                        if MS.saveFlag:
+                            logEvent(dat,MS)
+                    elif ardSig == '4':
+                        MS.UpdateArdStates(dat)
+
+                    cnt +=1
             except:
                 print ("error processing data", sys.exc_info()[0])
                 pass
@@ -88,7 +95,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                                 MS.START()
                             except:
                                 print('Unable to start automation. Talk to Alex about it.')
-                                print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+                                print ("error", sys.exc_info())
                                 MS.STOP()
 
                     # Automation Specific Commands
@@ -165,9 +172,9 @@ def getCmdLineInput(arduinoEv,interruptEv):
             break
 
 # Parse Input:
-expt, baud, headFile, datFile, saveFlag = ParseArguments()
+expt, baud, verboseFlag,  headFile, datFile, saveFlag = ParseArguments()
 # Set serial comm with arduino
-Comm = ArdComm(baud)
+Comm = ArdComm(baud,verbose=verboseFlag)
 
 # Creat Maze object
 if expt in PythonControlSet:

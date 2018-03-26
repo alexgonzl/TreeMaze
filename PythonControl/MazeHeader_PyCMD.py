@@ -1,8 +1,10 @@
 
 import os, sys, argparse
 import serial, string, sys, struct, datetime, time
-from transitions import Machine
-from transitions.extensions.states import add_state_features, Timeout, State
+from transitions import Machine, State
+from transitions.extensions.states import add_state_features, Timeout
+#from transitions import Machine
+#from transitions.extensions.states import add_state_features, Timeout, State
 import random, copy
 import numpy as np
 import PyCmdMessenger
@@ -31,9 +33,9 @@ def ParseArguments():
     parser.add_argument("Subject_ID", help="Please the Subject's ID")
     parser.add_argument("Experiment_ID", help="Please indicate the experiment")
     parser.add_argument("--code", help="Specific experimental protocol for the session")
-    parser.add_argument("--baud",type=int, choices = [9600,14400,19200,28800,38400,57600,115200],
-                        help="Baud rate for arduino. Defaults to 115200.")
+    parser.add_argument("--baud",type=int, choices = [9600,14400,19200,28800,38400,57600,115200], help="Baud rate for arduino. Defaults to 115200.")
     parser.add_argument("--save", choices=['y','n'])
+    parser.add_argument("--verbose", choices=['y','n'])
     parser.add_argument("--save_folder", help="Data storage folder. \n Defaults to '/home/pi/Documents/TreeMaze/Data/Experiment/Subject_ID/'")
     args = parser.parse_args()
 
@@ -52,6 +54,11 @@ def ParseArguments():
         args.code
     else:
         code = 'XXXX'
+
+    if args.verbose:
+        verbose = args.verbose
+    else:
+        verbose = False
 
     ## File saving information.
     if args.save=='y':
@@ -85,10 +92,14 @@ def ParseArguments():
         headFile=[]
         datFile =[]
 
-    return expt, baud, headFile, datFile, saveFlag
+    return expt, baud, verbose, headFile, datFile, saveFlag
 
 def logEvent(code,MS):
-    MS.datFile.write("%s,%f\n" % (code,time.time()-MS.time_ref) )
+    try:
+        for cc in code:
+            MS.datFile.write("%s,%f\n" % (cc,time.time()-MS.time_ref) )
+    except TypeError:
+        MS.datFile.write("%s,%f\n" % (code,time.time()-MS.time_ref) )
 
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
@@ -96,57 +107,92 @@ class ArdComm(object):
     COMMANDS = [["kAcknowledge",""],   # 0
      ["kError","s"],                    # 1
      ["kSendEvent","s"],                # 2
-     ["kStatus","s*"],                  # 3
-     ["kActivateAllWells",""],          # 4
-     ["kSelectWell_ACT",""],            # 5 -
-     ["kSelectWell_DeACT",""],          # 6 -
-     ["kToggleLED",""],                 # 7 -
-     ["kLED_ON",""],                    # 8 -
-     ["kLED_OFF",""],                   # 9 -
-     ["kSelectPump_ON",""],             # 10
-     ["kChangePumpDur",""],             # 11
-     ["kTurnPumpOnForXDur",""],         # 12
-     ["kSelectCUE_ON",""],              # 13 -
-     ["kTurnCUE_OFF",""],               # 14 -
-     ["kPrint_States",""],              # 15 -
-     ["kReset_States",""],              # 16
+     ["kPrintStatus","s*"],             # 3
+     ["kStateVec","s*"],                # 4
+     ["kActivateAllWells",""],          # 5 -
+     ["kSelectWell_ACT",""],            # 6 -
+     ["kSelectWell_DeACT",""],          # 7 -
+     ["kToggleLED",""],                 # 8 -
+     ["kLED_ON",""],                    # 9 -
+     ["kLED_OFF",""],                   # 10 -
+     ["kSelectPump_ON",""],             # 11 -
+     ["kChangePumpDur",""],             # 12 -
+     ["kTurnPumpOnForXDur",""],         # 13 -
+     ["kSelectCUE_ON",""],              # 14 -
+     ["kTurnCUE_OFF",""],               # 15 -
+     ["kPrint_States",""],              # 16 -
+     ["kStatusReq",""],                 # 17
+     ["kReset_States",""],              # 18 -
       ]
-    def __init__(self,baud):
+
+    def __init__(self,baud,verbose=False):
         try:
-            self.ard = serial.Serial('/dev/ttyUSB0',baud, timeout=0.1)
+            self.ard = PyCmdMessenger.ArduinoBoard('\\.\COM3', baud_rate=baud, timeout=0.1)
+            #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
         except:
             self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB1', baud_rate=baud, timeout=0.1)
         self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
+        self.verbose = verbose
+
     def close(self):
         self.ard.close()
 
     def ReceiveData(self):
         data = self.ard.readline()
-        if isinstance(data,bytes):
-            x = data.decode()
-            if x!='': # if not empty
-                if isinstance(x[0],int):
-                    ardsignal = x[0]
-                    if ardsignal == '0': # acknowledge signal from arduino
-                        print ("Ack from arduino.")
-                    elif ardsignal == '1': # error signal from arduinoEv
-                        print ("Arduino sent an error.")
-                    elif ardsignal == '2': # event signal
-                        return x.decode()[2:-1]
-                    elif ardsignal == '3': # ard status
-                        y = x.decode()[2:-1].split(",")
-                        print ("Arduino Status Check.")
-                        self.printListString(y)
-                    else:
-                        print("Unexpected Arduino.")
-        return "NONE"
+        try:
+            if isinstance(data,bytes):
+                dat = data.decode()
+                #print(dat)
+                dat_list = [*map( lambda t: t.split(','),dat.split(';'))]
+                ardSignal = []
+                ardDat = []
+                for x in dat_list:
+                    sig = x[0]
+                    if sig!='': # if not empty
+                        if sig == '0': # acknowledge signal from arduino
+                            ardSignal.append(sig)
+                            ardDat.append([])
+                            if self.verbose:
+                                if len(x)>1:
+                                    print("Ack. ",x[1])
+                                else:
+                                    print ("Ack from arduino.")
+                        elif sig == '1': # error signal from arduinoEv
+                            ardSignal.append(sig)
+                            ardDat.append([])
+                            print ("Arduino sent an error.")
+                            print(x[1])
+                        elif sig == '2': # event signal
+                            ardSignal.append(sig)
+                            ardDat.append(x[1])
+                        elif sig == '3': # ard status
+                            ardSignal.append(sig)
+                            ardDat.append([])
+                            print(x[1])
+                        elif sig == '4': # state vector
+                            dat_state = list(map(int,x[1].split('-')))
+                            ardSignal.append(sig)
+                            ardDat.append(dat_state)
+                            # for x in dat_state:
+                            #     ardSignal.append(sig)
+                            #     ardDat.append(x)
+                            if self.verbose:
+                                print(x[1])
+                        else:
+                            ardSignal.append('')
+                            ardDat.append([])
 
-    def printListString(self,data):
-        if isintance(data,list):
-            for ii in data:
-                print(ii)
-        else:
-            print("Error reading data from arduino")
+                    elif len(x)>1:
+                        if self.verbose:
+                            print(x[1])
+
+                return ardSignal,ardDat
+        except:
+            print("Error reading data. ", sys.exc_info())
+            print(data)
+
+    def GetStateVec(self):
+        self.con.send("kStatusReq");
 
     def ActivateAllWells(self):
         self.con.send("kActivateAllWells")
@@ -189,13 +235,12 @@ class ArdComm(object):
     def ToggleLED(self,well):
         if well>=0 and well <=5:
             self.con.send("kToggleLED",well,arg_formats="s")
-            
+
     def Reset(self):
         self.con.send("kReset_States")
 
     def getArdStatus(self):
         self.con.send("kPrint_States")
-        x = self.con.receive()
 
 class Maze(object):
     def __init__(self, Comm, protocol="null",headFile=[],datFile =[],saveFlag=False):
@@ -220,6 +265,7 @@ class Maze(object):
 
                 self.Act_Well = np.zeros(self.nWells,dtype=bool)
                 self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
+                self.LED_State = np.zeros(self.nWells,dtype=bool)
                 self.Act_Cue  = 0
                 self.Act_Cue_State = False
                 self.Queued_Cue = 0
@@ -270,6 +316,11 @@ class Maze(object):
                 self.CorrectWellsTracker = np.zeros(self.nWells)
                 self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
 
+                # True states from arduino
+                self.Ard_Act_Well_State = np.zeros(self.nWells,dtype=bool)
+                self.Ard_LED_State = np.zeros(self.nWells,dtype=bool)
+                self.Ard_Reward_Dur = np.zeros(self.nWells)
+
                 StateMachine = Machine2(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
 
@@ -303,7 +354,7 @@ class Maze(object):
 
             # reset all previous states on Arduino
             self.Comm.Reset()
-            time.sleep(0.2)
+            time.sleep(0.1)
             self.PythonControlFlag = True
             self.resetRewardsDurs()
             self.start()
@@ -391,7 +442,6 @@ class Maze(object):
         for well in self.Wells:
             self.Comm.ChangeReward(well,self.DefaultRewardDurations[well])
 
-
     def printSummary(self):
         if hasattr(self.headFile,'write'):
             self.headFile.write('Last Cue Switch Probability = %i \n' % (self.SwitchProb))
@@ -417,6 +467,30 @@ class Maze(object):
 
             self.headFile.write('\nTotal Reward Duration Per Well:\n')
             self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
+
+    def UpdateArdStates(self,stateVec):
+        well = stateVec[0]
+        self.Ard_Act_Well_State[well] = stateVec[1]
+        self.Ard_LED_State[well] = stateVec[2]
+        self.Ard_Reward_Dur[well] = stateVec[3]
+
+    def __InnerStateCheck__(self):
+        _resetflag = False
+        if any(self.Ard_Act_Well_State!=self.Act_Well):
+            self.Act_Well = np.array(self.Ard_Act_Well_State)
+            print("Warning. Maze Wells Activation States do not match python controls. Resetting.")
+            _resetflag = True
+        if any(self.Ard_LED_State!=self.LED_State):
+            self.LED_State = np.array(self.Ard_LED_State)
+            print("Warning. Maze LED State do not match controls. Resetting.")
+            _resetflag = True
+        if any(self.Ard_Reward_Dur!=self.RewardDurations):
+            self.RewardDurations = np.array(self.Ard_Reward_Dur)
+            print("Warning. Reward Durations do not match controls. Resetting.")
+            _resetflag = True
+
+        if _resetflag and self.PythonControlFlag:
+            self.NEW_TRIAL()
 
     ############# CUE Functions ################################################
     def enable_cue(self):
@@ -445,21 +519,24 @@ class Maze(object):
               #print('activated well', well+1)
               self.Comm.ActivateWell(well)
         except:
-            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+            print ("error", sys.exc_info())
+
+    def deactivate_well(self,well):
+        if not self.Act_Well[well]:
+            self.Comm.DeActivateWell(well)
 
     def LED_ON(self):
         for well in self.Wells:
             if self.Act_Well[well]:
                 self.Comm.LED_ON(well)
 
-    def deactivate_well(self,well):
-        if not self.Act_Well[well]:
-            self.Comm.DeActivateWell(well)
+    def LED_OFF(self,well):
+        self.Comm.LED_OFF(well)
 
     ############# State Machine Callbacks ######################################
     def update_states(self):
         try:
-            time.sleep(0.1)
+            time.sleep(0.05)
             if self.is_TimeOut() or self.is_AW0():
                 state = 0
             else:
@@ -470,7 +547,7 @@ class Maze(object):
                 self.CorrectTrialFlag = False
                 self.IncorrectTrialFlag = False
 
-                if self.Protocol not in ['T3e','T3f','T3g']:
+                if self.Protocol not in ['T3e','T3f','T3g','T3h']:
                     ## reset rewards duration if animal didn't repeat
                     if self.ChangedRewardFlag:
                         # reset to reward duration to  original
@@ -552,7 +629,7 @@ class Maze(object):
 
         except:
             print ('Error updating states')
-            print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+            print (sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     def G3456(self):
         return True
@@ -564,7 +641,6 @@ class Maze(object):
                 return True
         return False
 
-
     def G3(self):
         if self.Act_Cue==1 or self.Act_Cue==2 or self.Act_Cue==5:
             if self.Protocol[:2] in ['T4','T5']:
@@ -572,7 +648,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return random.random()<0.5
             else:
                 return True
@@ -585,7 +661,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return True
             else:
                 return True
@@ -605,7 +681,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return random.random()<0.5
             else:
                 return True
@@ -618,7 +694,7 @@ class Maze(object):
                     return True
                 else:
                     return False
-            elif self.Protocol in ['T3e','T3f','T3g']:
+            elif self.Protocol in ['T3e','T3f','T3g','T3h']:
                 return True
             else:
                 return True
@@ -667,10 +743,10 @@ class Maze(object):
     # Trial Processing
     def next_trial(self):
         self.TrialCounter +=1
-        if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
+        if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T3h','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             rr = random.random()
             if rr < self.SwitchProb: ## switch cue
-                if self.Act_Cue==self.ValidCues[0]:                 
+                if self.Act_Cue==self.ValidCues[0]:
                     self.Queued_Cue = copy.copy(self.ValidCues[1])
                 else:
                     self.Queued_Cue = copy.copy(self.ValidCues[0])
@@ -752,7 +828,7 @@ def MS_Setup(protocol,timeoutdur):
         {'trigger':'D0','source':'*','dest':'='}
         ]
 
-        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
+        if not (protocol in ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T4a','T4b','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']):
             print('Undefined protocol. Defaulting to T2.')
             protocol = 'T2'
 
@@ -1045,4 +1121,3 @@ def MS_Setup(protocol,timeoutdur):
         print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
     return states,transitions, ValidCues
-

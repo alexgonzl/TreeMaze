@@ -1,0 +1,6 @@
+from MazeHeader_PyCMD import ArdComm
+Comm = ArdComm(115200)
+Comm.ReceiveData()
+Comm.ActivateAllWells()
+
+while 
