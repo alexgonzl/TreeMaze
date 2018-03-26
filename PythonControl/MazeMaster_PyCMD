@@ -7,7 +7,7 @@
 
 import threading
 from MazeHeader_PyCMD import *
-PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d','T5Ra', 'T5Rb','T5Rc','T5La', 'T5Lb', 'T5Lc']
+PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T4a','T4b','T4c','T4d','T5Ra', 'T5Rb','T5Rc','T5La', 'T5Lb', 'T5Lc']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
@@ -17,6 +17,7 @@ def readArduino(arduinoEv, interruptEv):
             # reduce cpu load by reading arduino slower
             time.sleep(0.001)
             try:
+                ardEv = False
                 ardSignals,data = MS.Comm.ReceiveData()
                 cnt = 0
                 for sig in ardSignals:
@@ -28,10 +29,12 @@ def readArduino(arduinoEv, interruptEv):
                             print(dat)
                         if MS.saveFlag:
                             logEvent(dat,MS)
-                    elif ardSig == '4':
+                    elif sig == '4':
                         MS.UpdateArdStates(dat)
 
                     cnt +=1
+                if any(np.array(ardSignals)<=4):
+                    arduinoEv.set()
             except:
                 print ("error processing data", sys.exc_info()[0])
                 pass
@@ -46,14 +49,16 @@ def getCmdLineInput(arduinoEv,interruptEv):
     time.sleep(1)
     while True:
         if not interruptEv.is_set():
-            # wait 1 second for arduino information to come in
-            arduinoEv.wait(0.5)
+            # wait 200ms second for arduino information to come in
+            arduinoEv.wait(0.2)
             try:
                 print()
                 print ("Enter 'Auto', to start automatic goal sequencing.")
                 print ("Enter 'C#', to queue a cue for the next trial.")
                 print ("Enter 'S', to check state machine status")
                 print ("Enter 'N', to start a new trial.")
+                print ("Enter 'M#', to manually detect a well.")
+                print ("Enter 'P%', to change switch probability.")
                 print ("Enter 'Stop', to stop automation of well sequencing.")
                 print("------------------------------------------------------")
                 print ("Enter 'a','r' activate / reset all")
@@ -109,6 +114,15 @@ def getCmdLineInput(arduinoEv,interruptEv):
                         elif (CL_in=='N'):
                             print("Starting a new trial.")
                             MS.NEW_TRIAL()
+                            MS.NEW_TRIAL()
+                        elif (CL_in[0]=='M'):
+                            w = int(CL_in[1])
+                            if w>=1 and w<=6:
+                                MS.DETECT(w)
+                        elif (CL_in[0]=='P'):
+                            pr = int(CL_in[1:])
+                            if pr>=0 and pr<=100:
+                                MS.SwitchProb = float(pr)/100.0
                         elif (CL_in=='Stop'):
                             MS.STOP()
 

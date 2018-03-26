@@ -150,7 +150,7 @@ class ArdComm(object):
                     sig = x[0]
                     if sig!='': # if not empty
                         if sig == '0': # acknowledge signal from arduino
-                            ardSignal.append(sig)
+                            ardSignal.append(0)
                             ardDat.append([])
                             if self.verbose:
                                 if len(x)>1:
@@ -158,20 +158,20 @@ class ArdComm(object):
                                 else:
                                     print ("Ack from arduino.")
                         elif sig == '1': # error signal from arduinoEv
-                            ardSignal.append(sig)
+                            ardSignal.append(1)
                             ardDat.append([])
                             print ("Arduino sent an error.")
                             print(x[1])
                         elif sig == '2': # event signal
-                            ardSignal.append(sig)
+                            ardSignal.append(2)
                             ardDat.append(x[1])
                         elif sig == '3': # ard status
-                            ardSignal.append(sig)
+                            ardSignal.append(3)
                             ardDat.append([])
                             print(x[1])
                         elif sig == '4': # state vector
                             dat_state = list(map(int,x[1].split('-')))
-                            ardSignal.append(sig)
+                            ardSignal.append(4)
                             ardDat.append(dat_state)
                             # for x in dat_state:
                             #     ardSignal.append(sig)
@@ -179,7 +179,7 @@ class ArdComm(object):
                             if self.verbose:
                                 print(x[1])
                         else:
-                            ardSignal.append('')
+                            ardSignal.append(10)
                             ardDat.append([])
 
                     elif len(x)>1:
@@ -895,7 +895,10 @@ def MS_Setup(protocol,timeoutdur):
             ValidCues = [5,6]
 
         elif protocol in ['T3f']:
-            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals
+               depending on the cue with goal without LEDs on the wells with the cue staying ON. On left trials, the animal can
+               receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one
+               rewarded goal location. """
 
             transitions = transitions + [
                 ## goals on the right
@@ -915,7 +918,7 @@ def MS_Setup(protocol,timeoutdur):
             ValidCues = [5,6]
 
         elif protocol in ['T3g']:
-            """T3 refers to training regime 3. In this regime the animal can obtain a reward at random left or right goals depending on the cue with goal without LEDs on the wells. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
+            """T3 same as f with Cues having different flashing frequencies. Colors stayed the same."""
 
             transitions = transitions + [
                 ## goals on the right
@@ -934,6 +937,25 @@ def MS_Setup(protocol,timeoutdur):
                 {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'}]
             ValidCues = [1,4]
 
+        elif protocol in ['T3h']:
+            """T3h same as g with LEDs presented on the wells. """
+
+            transitions = transitions + [
+                ## goals on the right
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['LED_ON','rewardDelivered2']},
+
+                ## goals on the left
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['LED_ON','rewardDelivered2']},
+
+                ## incorrect choices
+                {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+                {'trigger':'D4','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+
+                {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},
+                {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'}]
+            ValidCues = [1,4]
 
         elif protocol in ['T4a','T4d']:
             """T4 class refers to training regime 4. In this regime the animal can obtain reward at alternating goal wells on any arm without LEDs. On left trials, the animal can receive reward at either goal well 5 or 6. On right trials, goal 3 or 4. Note that there is only one rewarded goal location. """
