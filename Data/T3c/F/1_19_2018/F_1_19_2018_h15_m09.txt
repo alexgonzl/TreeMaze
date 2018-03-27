@@ -1,0 +1,29 @@
+Date: 1_19_2018 
+Current Time: 15:09:36 
+Experimenter: Ashley 
+Subject: F 
+Experiment: T3c 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 1446.659873 
+Number of Trials = 43 
+Number of Correct Trials = 19 
+Number of Switches = 6 
+Number of Correct Trials after a Switch = 3 
+Number of Incorrect Arm Trials = 23 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+56, 52, 20, 27, 16, 13
+Number of Correct Well Detections: 
+42, 42, 3, 10, 2, 4
+Total Reward Duration = 828 
+Number of Rewards Per Well:
+42, 42, 4, 10, 2, 4
+Total Reward Duration Per Well:
+252, 336, 48, 120, 24, 48

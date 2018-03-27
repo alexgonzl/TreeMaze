@@ -1,0 +1,28 @@
+Date: 12_19_2017 
+Current Time: 13:54:47 
+Experimenter: Alex 
+Subject: O 
+Experiment: T3d 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+
+
+====================================================
+
+Session Summary:
+Session Time = 2045.732575 
+Number of Trials = 97 
+Number of Correct Trials = 59 
+Number of Switches = 12 
+Number of Correct Trials after a Switch = 9 
+Number of Incorrect Arm Trials = 32 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+131, 129, 53, 63, 68, 40
+Number of Correct Well Detections: 
+94, 91, 0, 31, 25, 3
+Total Reward Duration = 2180 
+Number of Rewards Per Well:
+96, 91, 11, 31, 25, 6
+Total Reward Duration Per Well:
+576, 728, 132, 372, 300, 72

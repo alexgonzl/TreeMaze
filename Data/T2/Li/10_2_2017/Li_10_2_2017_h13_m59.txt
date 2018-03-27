@@ -1,0 +1,7 @@
+Date: 10_2_2017 
+Current Time: 13:59:12 
+Experimenter: Alex 
+Subject: Li 
+Experiment: T2 
+Baud Rate: 115200 
+Experiment Code: XXXX 

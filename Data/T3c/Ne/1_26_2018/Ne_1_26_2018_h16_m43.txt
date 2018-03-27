@@ -1,0 +1,29 @@
+Date: 1_26_2018 
+Current Time: 16:43:18 
+Experimenter: Alex 
+Subject: Ne 
+Experiment: T3c 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 552.658243 
+Number of Trials = 17 
+Number of Correct Trials = 8 
+Number of Switches = 4 
+Number of Correct Trials after a Switch = 2 
+Number of Incorrect Arm Trials = 7 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+19, 17, 4, 7, 8, 7
+Number of Correct Well Detections: 
+16, 15, 0, 5, 3, 0
+Total Reward Duration = 266 
+Number of Rewards Per Well:
+16, 15, 0, 5, 3, 0
+Total Reward Duration Per Well:
+96, 90, 0, 50, 30, 0

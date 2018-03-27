@@ -1,0 +1,50 @@
+Date: 2_20_2018 
+Current Time: 13:00:19 
+Experimenter: Alex 
+Subject: F 
+Experiment: T3g 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 1103.255404 
+Number of Trials = 60 
+Number of Correct Trials = 36 
+Number of Switches = 20 
+Number of Correct Trials after a Switch = 10 
+Number of Incorrect Arm Trials = 24 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+95, 70, 19, 26, 42, 26
+Number of Correct Well Detections: 
+60, 60, 7, 6, 15, 8
+Total Reward Duration = 960 
+Number of Rewards Per Well:
+60, 60, 7, 6, 15, 8
+Total Reward Duration Per Well:
+300, 300, 70, 60, 150, 80Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 2279.986326 
+Number of Trials = 120 
+Number of Correct Trials = 59 
+Number of Switches = 40 
+Number of Correct Trials after a Switch = 12 
+Number of Incorrect Arm Trials = 60 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+222, 141, 50, 55, 76, 53
+Number of Correct Well Detections: 
+118, 119, 12, 11, 18, 18
+Total Reward Duration = 1785 
+Number of Rewards Per Well:
+120, 119, 12, 11, 18, 18
+Total Reward Duration Per Well:
+600, 595, 120, 110, 180, 180

@@ -1,0 +1,28 @@
+Date: 12_18_2017 
+Current Time: 16:11:40 
+Experimenter: Alex 
+Subject: C 
+Experiment: T4a 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+
+
+====================================================
+
+Session Summary:
+Session Time = 203.930101 
+Number of Trials = 6 
+Number of Correct Trials = 1 
+Number of Switches = 1 
+Number of Correct Trials after a Switch = 1 
+Number of Incorrect Arm Trials = 2 
+Number of Incorrect Goal Trials = 1 
+Number of Well Detections: 
+9, 8, 2, 2, 2, 0
+Number of Correct Well Detections: 
+6, 5, 1, 0, 1, 0
+Total Reward Duration = 128 
+Number of Rewards Per Well:
+6, 5, 1, 0, 1, 0
+Total Reward Duration Per Well:
+48, 50, 15, 0, 15, 0

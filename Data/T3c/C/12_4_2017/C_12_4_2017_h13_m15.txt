@@ -1,0 +1,28 @@
+Date: 12_4_2017 
+Current Time: 13:15:20 
+Experimenter: Ashley 
+Subject: C 
+Experiment: T3c 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+
+
+====================================================
+
+Session Summary:
+Session Time = 1792.055117 
+Number of Trials = 58 
+Number of Correct Trials = 31 
+Number of Switches = 10 
+Number of Correct Trials after a Switch = 9 
+Number of Incorrect Arm Trials = 26 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+74, 75, 4, 26, 30, 12
+Number of Correct Well Detections: 
+58, 57, 1, 17, 12, 1
+Total Reward Duration = 1499 
+Number of Rewards Per Well:
+58, 57, 1, 17, 12, 1
+Total Reward Duration Per Well:
+464, 570, 15, 255, 180, 15

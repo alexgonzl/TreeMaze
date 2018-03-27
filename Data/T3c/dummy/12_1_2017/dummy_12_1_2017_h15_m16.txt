@@ -1,0 +1,7 @@
+Date: 12_1_2017 
+Current Time: 15:16:52 
+Experimenter: Alex 
+Subject: dummy 
+Experiment: T3c 
+Baud Rate: 115200 
+Experiment Code: XXXX 
