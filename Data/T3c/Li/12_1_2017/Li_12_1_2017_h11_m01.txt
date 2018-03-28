@@ -1,0 +1,7 @@
+Date: 12_1_2017 
+Current Time: 11:01:16 
+Experimenter: Ashley 
+Subject: Li 
+Experiment: T3c 
+Baud Rate: 115200 
+Experiment Code: XXXX 

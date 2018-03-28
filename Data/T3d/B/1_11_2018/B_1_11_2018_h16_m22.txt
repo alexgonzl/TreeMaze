@@ -1,0 +1,28 @@
+Date: 1_11_2018 
+Current Time: 16:22:12 
+Experimenter: Ashley 
+Subject: B 
+Experiment: T3d 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+
+
+====================================================
+
+Session Summary:
+Session Time = 1428.864440 
+Number of Trials = 65 
+Number of Correct Trials = 57 
+Number of Switches = 19 
+Number of Correct Trials after a Switch = 18 
+Number of Incorrect Arm Trials = 7 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+87, 118, 14, 22, 30, 21
+Number of Correct Well Detections: 
+65, 65, 8, 21, 19, 9
+Total Reward Duration = 1624 
+Number of Rewards Per Well:
+66, 65, 10, 21, 19, 9
+Total Reward Duration Per Well:
+396, 520, 120, 252, 228, 108

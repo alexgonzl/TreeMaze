@@ -1,0 +1,7 @@
+Date: 2_22_2018 
+Current Time: 09:49:19 
+Experimenter: Ashley 
+Subject: Ne 
+Experiment: T3G 
+Baud Rate: 115200 
+Experiment Code: XXXX 

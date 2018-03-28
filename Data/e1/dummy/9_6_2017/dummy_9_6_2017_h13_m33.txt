@@ -1,0 +1,7 @@
+Date: 9_6_2017 
+Current Time: 13:33:30 
+Experimenter: alex 
+Subject: dummy 
+Experiment: e1 
+Baud Rate: 115200 
+Experiment Code: XXXX 

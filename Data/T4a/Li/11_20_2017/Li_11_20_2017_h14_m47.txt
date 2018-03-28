@@ -1,0 +1,7 @@
+Date: 11_20_2017 
+Current Time: 14:47:27 
+Experimenter: Ashley 
+Subject: Li 
+Experiment: T4a 
+Baud Rate: 115200 
+Experiment Code: XXXX 
