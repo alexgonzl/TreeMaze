@@ -7,7 +7,7 @@
 
 import threading
 from MazeHeader_PyCMD import *
-PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
+PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
@@ -17,18 +17,23 @@ def readArduino(arduinoEv, interruptEv):
             # reduce cpu load by reading arduino slower
             time.sleep(0.1)
             try:
-                data = MS.Comm.ReceiveData()
-                if data[0:2] in ["RE","DE","AW","DW","CA","CD"]:
-                    print(data)
-                    try:
-                        if MS.PythonControlFlag and data[0:2]=="DE":
-                            detectNum = int(data[2])
-                            MS.DETECT(detectNum)
-                            print(data)
-                    except:
-                        print("fsfre")
-                    if MS.saveFlag:
-                        logEvent(data,MS)
+                ardsigs,data = MS.Comm.ReceiveData()
+                cnt = -1
+                for sig in ardsigs:
+                    cnt +=1
+                    if sig==2:
+                        print(data[cnt])
+                        try:
+                            if MS.PythonControlFlag and data[cnt][0:2]=="DE":
+                                detectNum = int(data[cnt][2])
+                                MS.DETECT(detectNum)
+                                print(data[cnt])
+                        except:
+                            print("fsfre")
+
+                        if MS.saveFlag:
+                            logEvent(data[cnt],MS)
+                        
             except:
                 print ("error processing data", sys.exc_info())
                 pass

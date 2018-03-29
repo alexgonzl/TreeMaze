@@ -96,10 +96,13 @@ def ParseArguments():
 
 def logEvent(code,MS):
     try:
-        for cc in code:
-            MS.datFile.write("%s,%f\n" % (cc,time.time()-MS.time_ref) )
-    except TypeError:
-        MS.datFile.write("%s,%f\n" % (code,time.time()-MS.time_ref) )
+        if isinstance(code,str):
+            MS.datFile.write("%s,%f\n" % (code,time.time()-MS.time_ref) )
+        elif isinstance(code,list):
+            for cc in code:
+                MS.datFile.write("%s,%f\n" % (cc,time.time()-MS.time_ref) )
+    except:
+        print("error saving data")
 
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
@@ -130,8 +133,8 @@ class ArdComm(object):
             self.ard = PyCmdMessenger.ArduinoBoard('\\.\COM3', baud_rate=baud, timeout=0.1)
             #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
         except:
-            #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB1', baud_rate=baud, timeout=0.1)
-            self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
+            self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
+            #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
             
         self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
         self.verbose = verbose
