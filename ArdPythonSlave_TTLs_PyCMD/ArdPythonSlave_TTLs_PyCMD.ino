@@ -179,11 +179,6 @@ void OnUnknownCommand(){
 }
 
 void SendEventCode(char* code, int num){
-  // comm.sendCmdStart(kSendEvent);
-  // char str[5];
-  // sprintf(str,"%s%d", code, num);
-  // comm.sendCmdArg(str);
-  // comm.sendCmdEnd();
   char str[5];
   sprintf(str,"%s%d", code, num);
   comm.sendCmd(kSendEvent,str);
@@ -579,7 +574,7 @@ void SetPumpDur(int well, int dur) {
     Pump_ON_DUR[well] = dur;
     Pump_ON_DUR_Temp[well] = dur;
     char str[30];
-    sprintf(str, "Changed Pump %d to dur= %d.",well,dur);
+    sprintf(str, "Changed Pump %d to dur= %d.",well +1,dur);
     comm.sendCmd(kStatus,str);
   } else {
     Pump_ON_DUR[well] = Pump_ON_Default[well];

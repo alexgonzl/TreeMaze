@@ -22,20 +22,19 @@ def readArduino(arduinoEv, interruptEv):
                 for sig in ardsigs:
                     cnt +=1
                     if sig==2:
-                        print(data[cnt])
                         try:
                             if MS.PythonControlFlag and data[cnt][0:2]=="DE":
                                 detectNum = int(data[cnt][2])
                                 MS.DETECT(detectNum)
-                                print(data[cnt])
+                                print("Detection on Well #", detectNum)
                         except:
-                            print("fsfre")
+                            print("")
 
                         if MS.saveFlag:
                             logEvent(data[cnt],MS)
                         
             except:
-                print ("error processing data", sys.exc_info())
+                print ("Error Processing Incoming Data", sys.exc_info())
                 pass
         else:
             break
@@ -129,9 +128,10 @@ def getCmdLineInput(arduinoEv,interruptEv):
                     # quit instruction
                     if (ins == 'q'):
                         print('Terminating Arduino Communication')
-                        MS.STOP()
-                        close(MS)
                         interruptEv.set()
+                        MS.STOP()
+                        time.sleep(0.2)
+                        close(MS)
                         break
 
                     # global instructions: a,s,r,y
