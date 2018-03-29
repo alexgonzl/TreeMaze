@@ -130,12 +130,28 @@ class ArdComm(object):
             self.ard = PyCmdMessenger.ArduinoBoard('\\.\COM3', baud_rate=baud, timeout=0.1)
             #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
         except:
-            self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB1', baud_rate=baud, timeout=0.1)
+            #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB1', baud_rate=baud, timeout=0.1)
+            self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
+            
         self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
         self.verbose = verbose
 
     def close(self):
         self.ard.close()
+
+    def datsplit(self,data):
+        if isinstance(data,str):
+            commands = data.split(';')
+            out_list=[]
+            for com in commands:
+                com_elem = com.split(',')
+                com_list = []
+                for el in com_elem:
+                    com_list.append(el)
+                out_list.append(com_list)
+            return out_list
+        else:
+            return [[''],['']]
 
     def ReceiveData(self):
         data = self.ard.readline()
@@ -143,7 +159,7 @@ class ArdComm(object):
             if isinstance(data,bytes):
                 dat = data.decode()
                 #print(dat)
-                dat_list = [*map( lambda t: t.split(','),dat.split(';'))]
+                dat_list = self.datsplit(dat)
                 ardSignal = []
                 ardDat = []
                 for x in dat_list:

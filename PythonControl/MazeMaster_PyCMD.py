@@ -186,9 +186,9 @@ def getCmdLineInput(arduinoEv,interruptEv):
             break
 
 # Parse Input:
-expt, baud, headFile, datFile, saveFlag = ParseArguments()
+expt, baud, verbose, headFile, datFile, saveFlag = ParseArguments()
 # Set serial comm with arduino
-Comm = ArdComm(baud)
+Comm = ArdComm(baud,verbose=verbose)
 
 # Creat Maze object
 if expt in PythonControlSet:
