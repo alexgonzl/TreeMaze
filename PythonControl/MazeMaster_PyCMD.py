@@ -15,13 +15,14 @@ def readArduino(arduinoEv, interruptEv):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
-            time.sleep(0.1)
+            time.sleep(0.01)
             try:
                 ardsigs,data = MS.Comm.ReceiveData()
                 cnt = -1
                 for sig in ardsigs:
                     cnt +=1
                     if sig==2:
+                        print(data[cnt])
                         try:
                             if MS.PythonControlFlag and data[cnt][0:2]=="DE":
                                 detectNum = int(data[cnt][2])
@@ -39,6 +40,26 @@ def readArduino(arduinoEv, interruptEv):
         else:
             break
 
+
+def PrintInstructions():
+    print()
+    print ("Enter 'Auto', to start automatic goal sequencing.")
+    print ("Enter 'C#', to queue a cue for the next trial.")
+    print ("Enter 'S', to check state machine status")
+    print ("Enter 'N', to start a new trial.")
+    print ("Enter 'M#', to manually detect a well.")
+    print ("Enter 'P%', to change switch probability.")
+    print ("Enter 'Stop', to stop automation of well sequencing.")
+    print("------------------------------------------------------")
+    print ("Enter 'a','r' activate / reset all")
+    print ("Enter 's' to check status")
+    print ("Enter 'w#','d#', to activate/deactivate a well (e.g 'w1')")
+    print ("Enter 'p#', to turn on pump (e.g 'p3') ")
+    print ("Enter 'l#', to toggle LED (e.g 'l1') ")
+    print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
+    print ("Enter 'c#','y' to turn on/off cues ('c1')")
+    print ("Enter 'q' to exit")
+
 def getCmdLineInput(arduinoEv,interruptEv):
     global MS
     ArdWellInstSet = ['w','d','p','l','z'] # instructions for individual well control
@@ -50,24 +71,14 @@ def getCmdLineInput(arduinoEv,interruptEv):
             # wait 1 second for arduino information to come in
             arduinoEv.wait(0.5)
             try:
-                print()
-                print ("Enter 'Auto', to start automatic goal sequencing.")
-                print ("Enter 'C#', to queue a cue for the next trial.")
-                print ("Enter 'S', to check state machine status")
-                print ("Enter 'N', to start a new trial.")
-                print ("Enter 'M#', to manually detect a well.")
-                print ("Enter 'P%', to change switch probability.")
-                print ("Enter 'Stop', to stop automation of well sequencing.")
-                print("------------------------------------------------------")
-                print ("Enter 'a','r' activate / reset all")
-                print ("Enter 's' to check status")
-                print ("Enter 'w#','d#', to activate/deactivate a well (e.g 'w1')")
-                print ("Enter 'p#', to turn on pump (e.g 'p3') ")
-                print ("Enter 'l#', to toggle LED (e.g 'l1') ")
-                print ("Enter 'z#=dur' to change pump duration ('z4=20') ")
-                print ("Enter 'c#','y' to turn on/off cues ('c1')")
-                print ("Enter 'q' to exit")
+                print('To print available commands press ?')
                 CL_in = input()
+                if CL_in == '?':
+                    PrintInstructions()
+                    CL_in = input()
+                else:
+                    pass
+                    
                 if (isinstance(CL_in,str) and len(CL_in)>0):
                     # Automation
                     if (CL_in=='Auto'):

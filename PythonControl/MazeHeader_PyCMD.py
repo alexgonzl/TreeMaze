@@ -159,13 +159,13 @@ class ArdComm(object):
 
     def ReceiveData(self):
         data = self.ard.readline()
+        ardSignal = []
+        ardDat = []
         try:
             if isinstance(data,bytes):
                 dat = data.decode()
-                #print(dat)
                 dat_list = self.datsplit(dat)
-                ardSignal = []
-                ardDat = []
+                
                 for x in dat_list:
                     sig = x[0]
                     if sig!='': # if not empty
@@ -193,9 +193,6 @@ class ArdComm(object):
                             dat_state = list(map(int,x[1].split('-')))
                             ardSignal.append(4)
                             ardDat.append(dat_state)
-                            # for x in dat_state:
-                            #     ardSignal.append(sig)
-                            #     ardDat.append(x)
                             if self.verbose:
                                 print(x[1])
                         else:
@@ -207,9 +204,13 @@ class ArdComm(object):
                             print(x[1])
 
                 return ardSignal,ardDat
+        except UnicodeDecodeError:
+            print('Reading data error.')
+            return ardSignal,ardDat
         except:
             print("Error reading data. ", sys.exc_info())
             print(data)
+            return ardSignal,ardDat 
 
     def GetStateVec(self):
         self.con.send("kStatusReq");
@@ -219,12 +220,12 @@ class ArdComm(object):
 
     def ActivateWell(self,well):
         if well>=0 and well <=5:
-            self.con.send("kSelectWell_ACT",well,arg_formats="s")
+            self.con.send("kSelectWell_ACT",well,arg_formats="i")
 
     def DeActivateWell(self,well):
         if well>=0 and well <=5:
-            self.con.send("kSelectWell_DeACT",well,arg_formats="s")
-
+            self.con.send("kSelectWell_DeACT",well,arg_formats="i")
+           
     def ActivateCue(self,cueNum):
         if cueNum>0 and cueNum <=9:
             self.con.send("kSelectCUE_ON",cueNum,arg_formats="s")
@@ -246,15 +247,15 @@ class ArdComm(object):
 
     def LED_ON(self,well):
         if well>=0 and well <=5:
-            self.con.send("kLED_ON",well,arg_formats="s")
+            self.con.send("kLED_ON",well,arg_formats="i")
 
     def LED_OFF(self,well):
         if well>=0 and well <=5:
-            self.con.send("kLED_OFF",well,arg_formats="s")
+            self.con.send("kLED_OFF",well,arg_formats="i")
 
     def ToggleLED(self,well):
         if well>=0 and well <=5:
-            self.con.send("kToggleLED",well,arg_formats="s")
+            self.con.send("kToggleLED",well,arg_formats="i")
 
     def Reset(self):
         self.con.send("kReset_States")
@@ -422,6 +423,7 @@ class Maze(object):
                             self.ConsecutiveCorrectWellTracker[self.LeftGoals] = 0
                             self.ResetRewardFlag = True
 
+            #print('well ',well)
             self.TRIGGER[well+1]()
         except:
             print("Error on registering the detection")
@@ -432,6 +434,7 @@ class Maze(object):
         self.IncorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
         self.ConsecutiveCorrectWellTracker[self.GoalWells] = 0
+        self.Comm.Reset()
         self.ResetRewards()
         self.start()
 
@@ -542,8 +545,9 @@ class Maze(object):
             print ("error", sys.exc_info())
 
     def deactivate_well(self,well):
-        if not self.Act_Well[well]:
-            self.Comm.DeActivateWell(well)
+        self.Comm.DeActivateWell(well)
+        ## if not self.Act_Well[well]:
+        ##    self.Comm.DeActivateWell(well)
 
     def LED_ON(self):
         for well in self.Wells:
@@ -635,9 +639,15 @@ class Maze(object):
             if len(wells2deactivate)>0:
                 for well in wells2deactivate:
                     self.deactivate_well(well)
+                    time.sleep(0.01)
+
+
             if len(wells2activate)>0:
                 for well in wells2activate:
                     self.activate_well(well)
+                    time.sleep(0.01)
+            
+            
 
             # Turn on LED lights on special cases:
             # another way to do this is to put a clause in the tranistion check
