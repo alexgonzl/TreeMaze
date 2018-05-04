@@ -26,31 +26,33 @@ def readArduino(arduinoEv, interruptEv):
                             if MS.PythonControlFlag:
                                 if data[cnt][0:2]=="DE":
                                     wellnum = int(data[cnt][2])
+                                    MS.Ard_Act_Well_State[wellnum-1]=False
                                     MS.DETECT(wellnum)
-                                    print("Detection on Well #", wellnum)
+                                    #print("Detection on Well #", wellnum)
                                     if MS.saveFlag:
                                         logEvent(data[cnt],MS)
                                 if data[cnt][0:2]=="AW":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_Act_Well_State[wellnum-1]=True
-                                    print("Activated Well #", wellnum)
+                                    #print("Activated Well #", wellnum)
                                 if data[cnt][0:2]=="DW":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_Act_Well_State[wellnum-1]=False
-                                    print("Deactivated Well #", wellnum)
+                                    #print("Deactivated Well #", wellnum)
                                 if data[cnt][0:2]=="AL":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_LED_State[wellnum-1]=True
-                                    print("LED ON Well #", wellnum)
+                                    #print("LED ON Well #", wellnum)
                                 if data[cnt][0:2]=="DL":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_LED_State[wellnum-1]=False
-                                    print("LED OFF Well #", wellnum)
+                                    #print("LED OFF Well #", wellnum)
                                     
                         except:
                             print("Error Processing Arduino Event.", sys.exc_info())                        
                         
                     if sig == 4:
+                        #print("Updating arduino states.")
                         MS.UpdateArdStates(data[cnt])
       
             except:

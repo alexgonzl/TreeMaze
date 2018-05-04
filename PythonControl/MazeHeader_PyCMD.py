@@ -539,7 +539,6 @@ class Maze(object):
     def activate_well(self,well):
         try:
             if self.Act_Well[well]:
-              #print('activated well', well+1)
               self.Comm.ActivateWell(well)
         except:
             print ("error", sys.exc_info())
@@ -656,10 +655,14 @@ class Maze(object):
             
             temp = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
             wells2deactivate = self.Wells[temp]
-
+            #print("wells to deactivate ",wells2deactivate)
 
             # Confirm well activation states.
+            cnt = 0;
             while True:
+                if cnt>1:
+                    #print("check limit reached!")
+                    break
                 if len(wells2deactivate)>0:
                     for well in wells2deactivate:
                         self.deactivate_well(well)
@@ -669,25 +672,36 @@ class Maze(object):
                         self.activate_well(well)
 
                 self.Comm.GetStateVec()
-                time.sleep(0.2)
+                time.sleep(0.1)
 
                 # check that arduino matches python. if not re-do commands.
                 if all(self.Ard_Act_Well_State==self.Act_Well):
                     break
+                #else:
+                    
+                    #print(self.Ard_Act_Well_State)
+                    #print(self.Act_Well)
+                    #print("Arduino and Python don't agree on Wells.")
+                cnt=cnt+1;
 
             # Confirm Arduino LED States
+            cnt=0;
             while True:
+                if cnt>1:
+                    #print("check limit reached!")
+                    break
                 if all(self.Ard_LED_State==self.LED_State):
                     break
                 else:
+                    #print("Arduino and Python don't agree on LEDs.")
                     for well in self.Wells:
                         if self.LED_State[well]==False and self.Ard_LED_State[well]:
                             self.LED_OFF(well)
                         if self.LED_State[well] and self.Ard_LED_State[well]==False:
                             self.Comm.LED_ON(well)
-                    time.sleep(0.2)
                     self.Comm.GetStateVec()
-               
+                    time.sleep(0.1)
+                cnt=cnt+1;
         except:
             print ('Error updating states')
             print (sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
