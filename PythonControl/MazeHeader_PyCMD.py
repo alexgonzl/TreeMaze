@@ -135,7 +135,7 @@ class ArdComm(object):
         except:
             #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
             self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
-            
+
 
         self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
         self.verbose = verbose
@@ -165,7 +165,7 @@ class ArdComm(object):
             if isinstance(data,bytes):
                 dat = data.decode()
                 dat_list = self.datsplit(dat)
-                
+
                 for x in dat_list:
                     sig = x[0]
                     if sig!='': # if not empty
@@ -210,7 +210,7 @@ class ArdComm(object):
         except:
             print("Error reading data. ", sys.exc_info())
             print(data)
-            return ardSignal,ardDat 
+            return ardSignal,ardDat
 
     def GetStateVec(self):
         self.con.send("kStatusReq");
@@ -225,7 +225,7 @@ class ArdComm(object):
     def DeActivateWell(self,well):
         if well>=0 and well <=5:
             self.con.send("kSelectWell_DeACT",well,arg_formats="i")
-           
+
     def ActivateCue(self,cueNum):
         if cueNum>0 and cueNum <=9:
             self.con.send("kSelectCUE_ON",cueNum,arg_formats="i")
@@ -497,23 +497,25 @@ class Maze(object):
         self.Ard_LED_State[well] = stateVec[2]
         self.Ard_Reward_Dur[well] = stateVec[3]
 
-    def __InnerStateCheck__(self):
-        _resetflag = False
+    def InnerStateCheck(self):
         if any(self.Ard_Act_Well_State!=self.Act_Well):
-            self.Act_Well = np.array(self.Ard_Act_Well_State)
-            print("Warning. Maze Wells Activation States do not match python controls. Resetting.")
-            _resetflag = True
+            for well in self.Wells:
+                if self.Ard_Act_Well_State[well]==False and self.Act_Well[well]:
+                    self.Comm.ActivateWell(well)
+                if self.Ard_Act_Well_State[well] and self.Act_Well[well]==False:
+                    self.Comm.DeActivateWell(well)
+            print("Warning. Maze Wells Activation States do not match python controls. Trying to fix.")
+            self.Comm.GetStateVec()
         if any(self.Ard_LED_State!=self.LED_State):
-            self.LED_State = np.array(self.Ard_LED_State)
-            print("Warning. Maze LED State do not match controls. Resetting.")
-            _resetflag = True
-        if any(self.Ard_Reward_Dur!=self.RewardDurations):
-            self.RewardDurations = np.array(self.Ard_Reward_Dur)
-            print("Warning. Reward Durations do not match controls. Resetting.")
-            _resetflag = True
-
-        if _resetflag and self.PythonControlFlag:
-            self.NEW_TRIAL()
+            for well in self.Wells:
+                if self.LED_State[well]==False and self.Ard_LED_State[well]:
+                    self.Comm.LED_OFF(well)
+                if self.LED_State[well] and self.Ard_LED_State[well]==False:
+                    self.Comm.LED_ON(well)
+            print("Warning. Maze LED State do not match controls. Trying to fix.")
+            self.Comm.GetStateVec()
+        if any(self.Ard_Reward_Dur!=self.RewardDurations):\
+            print("Warning. Reward Durations do not match controls.")
 
     ############# CUE Functions ################################################
     def enable_cue(self):
@@ -565,7 +567,7 @@ class Maze(object):
                 state = 0
             else:
                 state = int(self.state[2:])
-     
+
             #### trial specific updates (when activating home well)
             if state == 1:
                 self.CorrectTrialFlag = False
@@ -639,7 +641,7 @@ class Maze(object):
                 else:
                     self.Act_Well[well] = False
                     self.LED_State[well]= False
-            
+
             # Turn on LED lights on special cases:
             # another way to do this is to put a clause in the tranistion check
             # trial number and then do LED_ON()
@@ -648,65 +650,28 @@ class Maze(object):
                 if self.Protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
                     self.LED_State[well] = True
                     self.LED_ON()
-                    
+
             # Python States
             temp = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
             wells2activate = self.Wells[temp]
-            
+
             temp = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
             wells2deactivate = self.Wells[temp]
-            #print("wells to deactivate ",wells2deactivate)
 
-            # Confirm well activation states.
-            cnt = 0;
-            while True:
-                if cnt>1:
-                    #print("check limit reached!")
-                    break
-                if len(wells2deactivate)>0:
-                    for well in wells2deactivate:
-                        self.deactivate_well(well)
-                
-                if len(wells2activate)>0:
-                    for well in wells2activate:
-                        self.activate_well(well)
+            if len(wells2deactivate)>0:
+                for well in wells2deactivate:
+                    self.deactivate_well(well)
+                    time.sleep(0.05)
 
-                self.Comm.GetStateVec()
-                time.sleep(0.1)
-
-                # check that arduino matches python. if not re-do commands.
-                if all(self.Ard_Act_Well_State==self.Act_Well):
-                    break
-                #else:
-                    
-                    #print(self.Ard_Act_Well_State)
-                    #print(self.Act_Well)
-                    #print("Arduino and Python don't agree on Wells.")
-                cnt=cnt+1;
-
-            # Confirm Arduino LED States
-            cnt=0;
-            while True:
-                if cnt>1:
-                    #print("check limit reached!")
-                    break
-                if all(self.Ard_LED_State==self.LED_State):
-                    break
-                else:
-                    #print("Arduino and Python don't agree on LEDs.")
-                    for well in self.Wells:
-                        if self.LED_State[well]==False and self.Ard_LED_State[well]:
-                            self.LED_OFF(well)
-                        if self.LED_State[well] and self.Ard_LED_State[well]==False:
-                            self.Comm.LED_ON(well)
-                    self.Comm.GetStateVec()
-                    time.sleep(0.1)
-                cnt=cnt+1;
+            if len(wells2activate)>0:
+                for well in wells2activate:
+                    self.activate_well(well)
+                    time.sleep(0.05)
+            self.Comm.GetStateVec()
         except:
             print ('Error updating states')
-            print (sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+            print (sys.exc_info())
 
-    
     def G3456(self):
         return True
 
