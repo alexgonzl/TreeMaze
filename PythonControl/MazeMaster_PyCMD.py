@@ -15,7 +15,7 @@ def readArduino(arduinoEv, interruptEv):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
-            time.sleep(0.001)
+            time.sleep(0.01)
             try:
                 ardsigs,data = MS.Comm.ReceiveData()
                 cnt = -1
@@ -47,14 +47,15 @@ def readArduino(arduinoEv, interruptEv):
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_LED_State[wellnum-1]=False
                                     #print("LED OFF Well #", wellnum)
-                                    
+
                         except:
-                            print("Error Processing Arduino Event.", sys.exc_info())                        
-                        
+                            print("Error Processing Arduino Event.", sys.exc_info())
+
                     if sig == 4:
                         #print("Updating arduino states.")
                         MS.UpdateArdStates(data[cnt])
-      
+                        MS.InnerStateCheck()
+                arduinoEv.set()
             except:
                 print ("Error Processing Incoming Data", sys.exc_info())
                 pass
@@ -99,7 +100,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                     CL_in = input()
                 else:
                     pass
-                    
+
                 if (isinstance(CL_in,str) and len(CL_in)>0):
                     # Automation
                     if (CL_in=='Auto'):
