@@ -228,22 +228,22 @@ class ArdComm(object):
            
     def ActivateCue(self,cueNum):
         if cueNum>0 and cueNum <=9:
-            self.con.send("kSelectCUE_ON",cueNum,arg_formats="s")
+            self.con.send("kSelectCUE_ON",cueNum,arg_formats="i")
 
     def DeActivateCue(self):
         self.con.send("kTurnCUE_OFF")
 
     def DeliverReward(self,well):
         if well>=0 and well <=5:
-            self.con.send("kSelectPump_ON",well,arg_formats="s")
+            self.con.send("kSelectPump_ON",well,arg_formats="i")
 
     def ChangeReward(self,well, dur):
         if well>=0 and well <=5:
-            self.con.send("kChangePumpDur",well,dur,arg_formats="ss")
+            self.con.send("kChangePumpDur",well,dur,arg_formats="ii")
 
     def DeliverSpecifiedReward(self,well,dur):
         if well>=0 and well <=5:
-            self.con.send("kTurnPumpOnForXDur",well,dur, arg_formats= "ss")
+            self.con.send("kTurnPumpOnForXDur",well,dur, arg_formats= "ii")
 
     def LED_ON(self,well):
         if well>=0 and well <=5:
@@ -551,7 +551,7 @@ class Maze(object):
 
     def LED_ON(self):
         for well in self.Wells:
-            if self.Act_Well[well]:
+            if self.Act_Well[well] and self.LED_State[well]==False:
                 self.Comm.LED_ON(well)
 
     def LED_OFF(self,well):
@@ -559,13 +559,14 @@ class Maze(object):
 
     ############# State Machine Callbacks ######################################
     def update_states(self):
+        self.Comm.GetStateVec()
         try:
             time.sleep(0.05)
             if self.is_TimeOut() or self.is_AW0():
                 state = 0
             else:
                 state = int(self.state[2:])
-
+     
             #### trial specific updates (when activating home well)
             if state == 1:
                 self.CorrectTrialFlag = False
@@ -611,6 +612,8 @@ class Maze(object):
 
             ### activate/deactivate wells based on current state
             self.PrevAct_Well = np.array(self.Act_Well)
+            #self.PrevAct_Well = np.array(self.Ard_Act_Well_State)
+
             posWells=[]
 
             if (state==123456): #activate all
@@ -627,40 +630,69 @@ class Maze(object):
             for well in self.Wells:
                 if well in posWells:
                     self.Act_Well[well] = True
+                    # all current protocols LED on for wells 1 and 2 if active.
+                    if self.Protocol[0:2] in ['T0','T1','T2','T3','T4']:
+                        if well in [0,1]:
+                            self.LED_State[well]=True
+                    # Depending on protocol LEDs on goal wells must be on or not.
+                    if self.Protocol in ['T3h']:
+                        self.LED_State[well]=True
                 else:
                     self.Act_Well[well] = False
-
-            temp = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
-            wells2activate = self.Wells[temp]
-            temp = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
-            wells2deactivate = self.Wells[temp]
-            #print('wells to activate ', wells2activate+1)
-            #print('wells to inactivate ', wells2deactivate+1)
-            if len(wells2deactivate)>0:
-                for well in wells2deactivate:
-                    self.deactivate_well(well)
-                    time.sleep(0.01)
-
-
-            if len(wells2activate)>0:
-                for well in wells2activate:
-                    self.activate_well(well)
-                    time.sleep(0.01)
+                    self.LED_State[well]= False
             
-            
-
             # Turn on LED lights on special cases:
             # another way to do this is to put a clause in the tranistion check
             # trial number and then do LED_ON()
             if state>=3 and state <=6:
                 # turn on lights at begining of alternation trials
                 if self.Protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
+                    self.LED_State[well] = True
                     self.LED_ON()
+                    
+            # Python States
+            temp = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
+            wells2activate = self.Wells[temp]
+            
+            temp = np.logical_and(self.PrevAct_Well==True, self.Act_Well==False)
+            wells2deactivate = self.Wells[temp]
 
+
+            # Confirm well activation states.
+            while True:
+                if len(wells2deactivate)>0:
+                    for well in wells2deactivate:
+                        self.deactivate_well(well)
+                
+                if len(wells2activate)>0:
+                    for well in wells2activate:
+                        self.activate_well(well)
+
+                self.Comm.GetStateVec()
+                time.sleep(0.2)
+
+                # check that arduino matches python. if not re-do commands.
+                if all(self.Ard_Act_Well_State==self.Act_Well):
+                    break
+
+            # Confirm Arduino LED States
+            while True:
+                if all(self.Ard_LED_State==self.LED_State):
+                    break
+                else:
+                    for well in self.Wells:
+                        if self.LED_State[well]==False and self.Ard_LED_State[well]:
+                            self.LED_OFF(well)
+                        if self.LED_State[well] and self.Ard_LED_State[well]==False:
+                            self.Comm.LED_ON(well)
+                    time.sleep(0.2)
+                    self.Comm.GetStateVec()
+               
         except:
             print ('Error updating states')
             print (sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
+    
     def G3456(self):
         return True
 

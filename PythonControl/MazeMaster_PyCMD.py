@@ -15,25 +15,44 @@ def readArduino(arduinoEv, interruptEv):
     while True:
         if not interruptEv.is_set():
             # reduce cpu load by reading arduino slower
-            time.sleep(0.01)
+            time.sleep(0.001)
             try:
                 ardsigs,data = MS.Comm.ReceiveData()
                 cnt = -1
                 for sig in ardsigs:
                     cnt +=1
                     if sig==2:
-                        print(data[cnt])
                         try:
-                            if MS.PythonControlFlag and data[cnt][0:2]=="DE":
-                                detectNum = int(data[cnt][2])
-                                MS.DETECT(detectNum)
-                                print("Detection on Well #", detectNum)
+                            if MS.PythonControlFlag:
+                                if data[cnt][0:2]=="DE":
+                                    wellnum = int(data[cnt][2])
+                                    MS.DETECT(wellnum)
+                                    print("Detection on Well #", wellnum)
+                                    if MS.saveFlag:
+                                        logEvent(data[cnt],MS)
+                                if data[cnt][0:2]=="AW":
+                                    wellnum = int(data[cnt][2])
+                                    MS.Ard_Act_Well_State[wellnum-1]=True
+                                    print("Activated Well #", wellnum)
+                                if data[cnt][0:2]=="DW":
+                                    wellnum = int(data[cnt][2])
+                                    MS.Ard_Act_Well_State[wellnum-1]=False
+                                    print("Deactivated Well #", wellnum)
+                                if data[cnt][0:2]=="AL":
+                                    wellnum = int(data[cnt][2])
+                                    MS.Ard_LED_State[wellnum-1]=True
+                                    print("LED ON Well #", wellnum)
+                                if data[cnt][0:2]=="DL":
+                                    wellnum = int(data[cnt][2])
+                                    MS.Ard_LED_State[wellnum-1]=False
+                                    print("LED OFF Well #", wellnum)
+                                    
                         except:
-                            print("")
-
-                        if MS.saveFlag:
-                            logEvent(data[cnt],MS)
+                            print("Error Processing Arduino Event.", sys.exc_info())                        
                         
+                    if sig == 4:
+                        MS.UpdateArdStates(data[cnt])
+      
             except:
                 print ("Error Processing Incoming Data", sys.exc_info())
                 pass

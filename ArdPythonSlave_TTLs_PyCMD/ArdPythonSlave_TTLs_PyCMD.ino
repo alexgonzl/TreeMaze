@@ -120,6 +120,8 @@ unsigned long PumpTimer[nWells];        // timer for how long pump has been on
 char RR[] = "RE"; // reward
 char DD[] = "DE"; // detection
 char AW[] = "AW"; // actived well
+char AL[] = "AL"; // led on
+char DL[] = "DL" ; // led offs
 char DW[] = "DW"; // deactivated well (usually after detection)
 char CA[] = "CA"; // cue on.
 char CD[] = "CD"; // cue off/
@@ -416,7 +418,8 @@ void ResetDetectTimer(int well) {
               Cue Control
 *****************************************/
 void SelectCUE_ON() {
-  int cue = comm.readInt16Arg();
+  //int cue = comm.readInt16Arg();
+  int cue = comm.readBinArg<int>();
   if (cue >= 1 && cue <= 9) {
     ActiveCUE_ID = cue;
     SendEventCode(CA, cue);
@@ -514,7 +517,7 @@ void ChangeCueColor(uint32_t col) {
       Pump/Reward Control
 *****************************************/
 void SelectPump_ON() {
-  int well = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
     comm.sendCmd(kAcknowledge, "Pump On");
@@ -546,16 +549,18 @@ void TurnOFFPump(int well) {
 }
 
 void ChangePumpDur() {
-  int well = comm.readInt16Arg();
-  int dur = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
+  int dur = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     SetPumpDur(well,dur);
   }
 }
 
 void TurnPumpOnForXDur(){
-  int well = comm.readInt16Arg();
-  int dur = comm.readInt16Arg();
+  //int well = comm.readInt16Arg();
+  //int dur = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
+  int dur = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     if (dur>0 && dur<=250){
       Pump_ON_DUR_Temp[well] = dur;
@@ -586,7 +591,8 @@ void SetPumpDur(int well, int dur) {
    Activate/Deactivate wells.
 *****************************************/
 void SelectWell_ACT() {
-  int well = comm.readInt16Arg();
+  //int well = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
     comm.sendCmd(kAcknowledge, "Activated Well");
@@ -596,7 +602,8 @@ void SelectWell_ACT() {
 }
 
 void SelectWell_DeACT() {
-  int well = comm.readInt16Arg();
+  //int well = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
     comm.sendCmd(kAcknowledge,"Deactivated Well");
@@ -648,22 +655,26 @@ void Reset_States() {
           Well LED functions
 *****************************************/
 void LED_ON(){
-  int well = comm.readInt16Arg();
+  //int well = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
   if (well >=0 && well <= 5){
     Well_LED_ON(well);
     comm.sendCmd(kAcknowledge, "LED ON");
   } else{
     comm.sendCmd(kError,"Invalid Well");
   }
+  SendEventCode(AL, well + 1);
 }
 void LED_OFF(){
-  int well = comm.readInt16Arg();
+  //int well = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
   if (well >=0 && well <= 5){
     Well_LED_OFF(well);
     comm.sendCmd(kAcknowledge,"LED OFF");
   } else{
     comm.sendCmd(kError,"Invalid Well");
   }
+  SendEventCode(DL, well + 1);
 }
 
 void  Well_LED_ON(int well) {
@@ -679,7 +690,8 @@ void  Well_LED_OFF(int well) {
 }
 
 void ToggleLED(){
-  int well = comm.readInt16Arg();
+  //int well = comm.readInt16Arg();
+  int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5){
     if (Well_LED_State[well] == false){
       Well_LED_ON(well);
