@@ -29,6 +29,8 @@ const bool Pump_OFF = HIGH; // HIGH deactivates the pump.
 const int nWells = 6; // number of reward wells
 const int nCues = 4; // max number of cues.
 const int TTL_PulseDur = 10; // Output TTL Pulse Duration in ms
+const int StateReportInterval = 5000; // send a report every 5 seconds
+
 // Default values for pump durations
 const long Pump_ON_Default[nWells]   = {6, 6, 12, 12, 12, 12};
 long Pump_ON_DUR[nWells]    = {6, 6, 12, 12, 12, 12};
@@ -116,6 +118,8 @@ unsigned long TTL_IR_Detect_Timer[nWells]; // timer
 unsigned long PumpTimeRef[nWells];      // time ref for pump on
 unsigned long PumpTimer[nWells];        // timer for how long pump has been on
 
+long StateReportTimer;
+
 // Event codes
 char RR[] = "RE"; // reward
 char DD[] = "DE"; // detection
@@ -172,7 +176,7 @@ void attachCommandCallbacks(){
   comm.attach(kSelectCUE_ON,SelectCUE_ON);
   comm.attach(kTurnCUE_OFF,TurnCUE_OFF);
   comm.attach(kPrint_States,Print_States);
-  comm.attach(kStatusReq,StateVector);
+  comm.attach(kStatusReq,StateVectorReport);
   comm.attach(kReset_States, Reset_States);
 }
 
@@ -265,6 +269,7 @@ void setup() {
   attachCommandCallbacks();
 
   comm.sendCmd(kAcknowledge,"Arduino has started!");
+  StateReportTimer = millis();
 } // end setup
 
 //Main
@@ -332,6 +337,12 @@ void loop() {
     SerialState = false;
     Reset_States();
   }
+
+  StateReportTimer = millis()-StateReportTimer;
+  if (StateReportTimer>=StateReportInterval){
+    StateReportTimer = millis();
+    StateVectorReport();
+    }
 } // end of Main loop()
 
 /**********************************************************
@@ -719,7 +730,7 @@ void Print_States() {
   comm.sendCmd(kStatus,str2);
 }
 
-void StateVector(){
+void StateVectorReport(){
   char temp[15];
   for (int well = 0; well<nWells; well++){
     sprintf(temp,"%d-%d-%d-%d",well,Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);

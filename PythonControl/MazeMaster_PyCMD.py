@@ -29,32 +29,34 @@ def readArduino(arduinoEv, interruptEv):
                                     MS.Ard_Act_Well_State[wellnum-1]=False
                                     MS.DETECT(wellnum)
                                     #print("Detection on Well #", wellnum)
-                                    if MS.saveFlag:
-                                        logEvent(data[cnt],MS)
-                                if data[cnt][0:2]=="AW":
+                                    
+                                elif data[cnt][0:2]=="AW":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_Act_Well_State[wellnum-1]=True
-                                    #print("Activated Well #", wellnum)
-                                if data[cnt][0:2]=="DW":
+                                    print("Activated Well #", wellnum)
+                                elif data[cnt][0:2]=="DW":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_Act_Well_State[wellnum-1]=False
                                     #print("Deactivated Well #", wellnum)
-                                if data[cnt][0:2]=="AL":
+                                elif data[cnt][0:2]=="AL":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_LED_State[wellnum-1]=True
                                     #print("LED ON Well #", wellnum)
-                                if data[cnt][0:2]=="DL":
+                                elif data[cnt][0:2]=="DL":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_LED_State[wellnum-1]=False
                                     #print("LED OFF Well #", wellnum)
+                                if MS.saveFlag:
+                                    logEvent(data[cnt],MS)
                                     
                         except:
                             print("Error Processing Arduino Event.", sys.exc_info())                        
                         
                     if sig == 4:
-                        #print("Updating arduino states.")
+                        print("Updating arduino states.")
                         MS.UpdateArdStates(data[cnt])
-      
+                        MS.InnerStateCheck()
+                arduinoEv.set()
             except:
                 print ("Error Processing Incoming Data", sys.exc_info())
                 pass
@@ -90,7 +92,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
     while True:
         if not interruptEv.is_set():
             # wait 1 second for arduino information to come in
-            arduinoEv.wait(0.5)
+            arduinoEv.wait(0.2)
             try:
                 print('To print available commands press ?')
                 CL_in = input()
@@ -160,8 +162,8 @@ def getCmdLineInput(arduinoEv,interruptEv):
                     # quit instruction
                     if (ins == 'q'):
                         print('Terminating Arduino Communication')
-                        interruptEv.set()
                         MS.STOP()
+                        interruptEv.set()
                         time.sleep(0.2)
                         close(MS)
                         break
@@ -171,6 +173,7 @@ def getCmdLineInput(arduinoEv,interruptEv):
                         if ins == 'a':
                             MS.Comm.ActivateAllWells()
                         elif ins == 's':
+                            print('checking status')
                             MS.Comm.getArdStatus()
                         elif ins == 'r':
                             MS.Comm.Reset()
