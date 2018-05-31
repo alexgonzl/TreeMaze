@@ -139,6 +139,9 @@ class ArdComm(object):
 
         self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
         self.verbose = verbose
+        # empty the buffer
+        self.ard.readline()
+        self.ard.readline()
 
     def close(self):
         self.ard.close()
@@ -205,7 +208,8 @@ class ArdComm(object):
 
                 return ardSignal,ardDat
         except UnicodeDecodeError:
-            print('Reading data error.')
+            print('Decoding data error.', sys.exc_info())
+            print(ardSignal,ardDat)
             return ardSignal,ardDat
         except:
             print("Error reading data. ", sys.exc_info())
@@ -345,6 +349,8 @@ class Maze(object):
                 StateMachine = Machine2(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
 
+                self.IncongruencyFlag=False
+                self.IncongruencyTimer = 0
                 self.TRIGGER = []
                 # dummy first append tr
                 self.TRIGGER.append(getattr(self,'D0'))
@@ -492,31 +498,50 @@ class Maze(object):
             self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
 
     def UpdateArdStates(self,stateVec):
-        well = stateVec[0]
-        self.Ard_Act_Well_State[well] = stateVec[1]
-        self.Ard_LED_State[well] = stateVec[2]
-        self.Ard_Reward_Dur[well] = stateVec[3]
+        
+        try:
+            well = int(stateVec[0])
+            self.Ard_Act_Well_State[well] = stateVec[1]
+            self.Ard_LED_State[well] = stateVec[2]
+            self.Ard_Reward_Dur[well] = stateVec[3]
+        except:
+            print("warning: couldn't update arduino states.",sys.exc_info())
 
-    def InnerStateCheck(self):
-        if any(self.Ard_Act_Well_State!=self.Act_Well):
-            for well in self.Wells:
-                if self.Ard_Act_Well_State[well]==False and self.Act_Well[well]:
-                    self.Comm.ActivateWell(well)
-                if self.Ard_Act_Well_State[well] and self.Act_Well[well]==False:
-                    self.Comm.DeActivateWell(well)
-            print("Warning. Maze Wells Activation States do not match python controls. Trying to fix.")
-            self.Comm.GetStateVec()
-        if any(self.Ard_LED_State!=self.LED_State):
-            for well in self.Wells:
-                if self.LED_State[well]==False and self.Ard_LED_State[well]:
-                    self.Comm.LED_OFF(well)
-                if self.LED_State[well] and self.Ard_LED_State[well]==False:
-                    self.Comm.LED_ON(well)
-            print("Warning. Maze LED State do not match controls. Trying to fix.")
-            self.Comm.GetStateVec()
-        if any(self.Ard_Reward_Dur!=self.RewardDurations):\
-            print("Warning. Reward Durations do not match controls.")
+    def InnerStateCheck(self,well):
+        try:
+            if well==0:
+                if self.IncongruencyFlag==False:
+                    self.IncongruencyTimer = time.time()
+                else:
+                    self.IncongruencyFlag=False
 
+            
+            if self.Ard_Act_Well_State[well]==False and self.Act_Well[well]:
+                self.Comm.ActivateWell(well)
+                self.IncongruencyFlag=True
+                print("activation disagreement")
+            if self.Ard_Act_Well_State[well] and self.Act_Well[well]==False:
+                self.Comm.DeActivateWell(well)
+                self.IncongruencyFlag=True
+                print("deactivation disagreement")
+            if self.LED_State[well]==False and self.Ard_LED_State[well]:
+                self.Comm.LED_OFF(well)
+                self.IncongruencyFlag=True
+                print("Led off disagreement")
+            if self.LED_State[well] and self.Ard_LED_State[well]==False:
+                self.Comm.LED_ON(well)
+                self.IncongruencyFlag=True
+                print("Led on disagreement")
+
+            if (well==5):
+                if self.IncongruencyFlag:
+                    print("Obtaining Ard States again")
+                else:
+                    self.IncongruencyTimer = 0
+                    self.IncongruencyFlag=False
+
+        except:
+            print("Warning. Error checking states",sys.exc_info())
     ############# CUE Functions ################################################
     def enable_cue(self):
         # enables the use of cues
@@ -540,29 +565,36 @@ class Maze(object):
     ############# Well Functions ###############################################
     def activate_well(self,well):
         try:
-            if self.Act_Well[well]:
-              self.Comm.ActivateWell(well)
+            if self.Act_Well[well]==False:
+                self.Act_Well[well]=True
+            self.Comm.ActivateWell(well)
         except:
             print ("error", sys.exc_info())
 
     def deactivate_well(self,well):
+        if self.Act_Well[well]==True:
+            self.Act_Well[well]=False
         self.Comm.DeActivateWell(well)
         ## if not self.Act_Well[well]:
         ##    self.Comm.DeActivateWell(well)
 
-    def LED_ON(self):
+    def LED_Active_ON(self):
         for well in self.Wells:
-            if self.Act_Well[well] and self.LED_State[well]==False:
+            if self.Act_Well[well] and self.LED_State[well]:
                 self.Comm.LED_ON(well)
-
+    def LED_ON(self,well):
+        if self.LED_State[well]==False:
+            self.LED_State[well]=True
+        self.Comm.LED_ON(well)
     def LED_OFF(self,well):
+        if self.LED_State[well]==True:
+            self.LED_State[well]=False
         self.Comm.LED_OFF(well)
 
     ############# State Machine Callbacks ######################################
     def update_states(self):
-        self.Comm.GetStateVec()
+        #self.Comm.GetStateVec()
         try:
-            time.sleep(0.05)
             if self.is_TimeOut() or self.is_AW0():
                 state = 0
             else:
@@ -635,21 +667,14 @@ class Maze(object):
                     if self.Protocol[0:2] in ['T0','T1','T2','T3','T4']:
                         if well in [0,1]:
                             self.LED_State[well]=True
+                            
                     # Depending on protocol LEDs on goal wells must be on or not.
                     if self.Protocol in ['T3h']:
                         self.LED_State[well]=True
+            
                 else:
                     self.Act_Well[well] = False
                     self.LED_State[well]= False
-
-            # Turn on LED lights on special cases:
-            # another way to do this is to put a clause in the tranistion check
-            # trial number and then do LED_ON()
-            if state>=3 and state <=6:
-                # turn on lights at begining of alternation trials
-                if self.Protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
-                    self.LED_State[well] = True
-                    self.LED_ON()
 
             # Python States
             temp = np.logical_and(self.PrevAct_Well==False, self.Act_Well==True)
@@ -661,13 +686,29 @@ class Maze(object):
             if len(wells2deactivate)>0:
                 for well in wells2deactivate:
                     self.deactivate_well(well)
-                    time.sleep(0.05)
+                    self.LED_State[well]= False
+                    #self.LED_OFF(well)
 
             if len(wells2activate)>0:
                 for well in wells2activate:
                     self.activate_well(well)
-                    time.sleep(0.05)
+
+            # Turn on LED lights on special cases:
+            # another way to do this is to put a clause in the tranistion check
+            # trial number and then do LED_ON()
+            if state>=3 and state <=6:
+                # turn on lights at begining of alternation trials
+                if self.Protocol in ['T4b','T4c','T5Rb','T5Rc','T5Lb','T5Lc'] and self.TrialCounter<=self.EarlyTrialThr:
+                    self.LED_State[state-1] = True
+
+            # Turn LEDs on for LED_State==True
+            self.LED_Active_ON()
+
+            # Let all changes occur on Arduino
+            time.sleep(0.05)
+            # Report back arduino states
             self.Comm.GetStateVec()
+            
         except:
             print ('Error updating states')
             print (sys.exc_info())
@@ -842,8 +883,8 @@ def MS_Setup(protocol,timeoutdur):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
         states =  [
             State(name='AW0', on_enter=['disable_cue','update_states'], ignore_invalid_triggers=True),
-            State(name='AW1',on_enter=['next_trial','update_states','LED_ON','deactivate_cue','enable_cue'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
-            State(name='AW2',on_enter=['update_states','LED_ON'],ignore_invalid_triggers=True),
+            State(name='AW1',on_enter=['next_trial','update_states','deactivate_cue','enable_cue'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
+            State(name='AW2',on_enter=['update_states'],ignore_invalid_triggers=True),
             State(name='AW3',on_enter='update_states',ignore_invalid_triggers=True),
             State(name='AW4',on_enter='update_states',ignore_invalid_triggers=True),
             State(name='AW5',on_enter='update_states',ignore_invalid_triggers=True),
@@ -983,12 +1024,12 @@ def MS_Setup(protocol,timeoutdur):
 
             transitions = transitions + [
                 ## goals on the right
-                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['LED_ON','rewardDelivered2']},
-                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW3', 'conditions':'G3','after':['rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW4', 'conditions':'G4','after':['rewardDelivered2']},
 
                 ## goals on the left
-                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['LED_ON','rewardDelivered2']},
-                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['LED_ON','rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW5', 'conditions':'G5','after':['rewardDelivered2']},
+                {'trigger':'D2','source':'AW2','dest':'AW6', 'conditions':'G6','after':['rewardDelivered2']},
 
                 ## incorrect choices
                 {'trigger':'D3','source':['AW5','AW6'],'dest':'TimeOut','before':'incorrectT3','after':'deactivate_cue'},

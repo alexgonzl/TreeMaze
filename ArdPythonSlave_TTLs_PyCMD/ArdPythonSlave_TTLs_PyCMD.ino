@@ -30,6 +30,7 @@ const int nWells = 6; // number of reward wells
 const int nCues = 4; // max number of cues.
 const int TTL_PulseDur = 10; // Output TTL Pulse Duration in ms
 const int StateReportInterval = 5000; // send a report every 5 seconds
+bool StateReportFlag = false;
 
 // Default values for pump durations
 const long Pump_ON_Default[nWells]   = {6, 6, 12, 12, 12, 12};
@@ -338,11 +339,13 @@ void loop() {
     Reset_States();
   }
 
-  StateReportTimer = millis()-StateReportTimer;
-  if (StateReportTimer>=StateReportInterval){
-    StateReportTimer = millis();
-    StateVectorReport();
-    }
+  if (StateReportFlag==true){
+    StateReportTimer = millis()-StateReportTimer;
+    if (StateReportTimer>=StateReportInterval){
+      StateReportTimer = millis();
+      StateVectorReport();
+      }
+  }
 } // end of Main loop()
 
 /**********************************************************
@@ -531,7 +534,7 @@ void SelectPump_ON() {
   int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
-    comm.sendCmd(kAcknowledge, "Pump On");
+    //comm.sendCmd(kAcknowledge, "Pump On");
   } else {
     comm.sendCmd(kError, "Invalid Well.");
   }
@@ -575,7 +578,7 @@ void TurnPumpOnForXDur(){
   if (well >= 0 && well <= 5) {
     if (dur>0 && dur<=250){
       Pump_ON_DUR_Temp[well] = dur;
-      comm.sendCmd(kAcknowledge,"Delivering specified reward.");
+      //comm.sendCmd(kAcknowledge,"Delivering specified reward.");
       Deliver_Reward(well);
     } else {
       comm.sendCmd(kError,"Invalid Pump Duration.");
@@ -606,7 +609,7 @@ void SelectWell_ACT() {
   int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
-    comm.sendCmd(kAcknowledge, "Activated Well");
+    //comm.sendCmd(kAcknowledge, "Activated Well");
   } else {
     comm.sendCmd(kError,"Invalid Well.");
   }
@@ -617,33 +620,36 @@ void SelectWell_DeACT() {
   int well = comm.readBinArg<int>();
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
-    comm.sendCmd(kAcknowledge,"Deactivated Well");
+    //comm.sendCmd(kAcknowledge,"Deactivated Well");
   } else{
     comm.sendCmd(kError,"Invalid Well.");
   }
 }
 
 void ActivateWell(int well) {
-  Well_Active_State[well] = true;
-  Well_Active_TimeRef[well] = millis();
-  Well_Active_Timer[well] = 0;
-
-  Well_IR_State[well] = false;
-  Well_Detect_State[well] = false;
-  digitalWrite(TTL_IR_Pins[well],LOW);
-
-  Well_IR_RefracTimeRef[well] = 0;
-  ResetDetectTimer(well);
-
-  SendEventCode(AW, well + 1);
+  if (Well_Active_State[well]==false){
+    Well_Active_State[well] = true;
+    Well_Active_TimeRef[well] = millis();
+    Well_Active_Timer[well] = 0;
+  
+    Well_IR_State[well] = false;
+    Well_Detect_State[well] = false;
+    digitalWrite(TTL_IR_Pins[well],LOW);
+  
+    Well_IR_RefracTimeRef[well] = 0;
+    ResetDetectTimer(well);
+  
+    SendEventCode(AW, well + 1);
+  }
 }
-
 void DeActivateWell(int well) {
-  Well_Active_State[well] = false;
-  Well_Active_TimeRef[well] = MAX_TIME_UL;
-  Well_Active_Timer[well] = 0;
-  Well_LED_OFF(well);
-  SendEventCode(DW, well + 1);
+  if (Well_Active_State[well]==true){
+    Well_Active_State[well] = false;
+    Well_Active_TimeRef[well] = MAX_TIME_UL;
+    Well_Active_Timer[well] = 0;
+    Well_LED_OFF(well);
+    SendEventCode(DW, well + 1);
+  }
 }
 
 void ActivateAllWells() {
@@ -651,7 +657,7 @@ void ActivateAllWells() {
     Well_LED_ON(well);
     ActivateWell(well);
   }
-  comm.sendCmd(kAcknowledge, "All Wells Activated.");
+  //comm.sendCmd(kAcknowledge, "All Wells Activated.");
 }
 
 void Reset_States() {
@@ -670,18 +676,17 @@ void LED_ON(){
   int well = comm.readBinArg<int>();
   if (well >=0 && well <= 5){
     Well_LED_ON(well);
-    comm.sendCmd(kAcknowledge, "LED ON");
+    //comm.sendCmd(kAcknowledge, "LED ON");
   } else{
     comm.sendCmd(kError,"Invalid Well");
   }
-  SendEventCode(AL, well + 1);
 }
 void LED_OFF(){
   //int well = comm.readInt16Arg();
   int well = comm.readBinArg<int>();
   if (well >=0 && well <= 5){
     Well_LED_OFF(well);
-    comm.sendCmd(kAcknowledge,"LED OFF");
+    //comm.sendCmd(kAcknowledge,"LED OFF");
   } else{
     comm.sendCmd(kError,"Invalid Well");
   }
@@ -689,15 +694,21 @@ void LED_OFF(){
 }
 
 void  Well_LED_ON(int well) {
-  digitalWrite(Well_LED_Pins[well], HIGH);
-  digitalWrite(TTL_LED_Pins[well], HIGH);
-  Well_LED_State[well] = true;
+  if (Well_LED_State[well] == false){
+    digitalWrite(Well_LED_Pins[well], HIGH);
+    digitalWrite(TTL_LED_Pins[well], HIGH);
+    Well_LED_State[well] = true;
+    SendEventCode(AL, well + 1);
+  }
 }
 
 void  Well_LED_OFF(int well) {
-  digitalWrite(Well_LED_Pins[well], LOW);
-  digitalWrite(TTL_LED_Pins[well], LOW);
-  Well_LED_State[well] = false;
+  if (Well_LED_State[well] == true) {
+    digitalWrite(Well_LED_Pins[well], LOW);
+    digitalWrite(TTL_LED_Pins[well], LOW);
+    Well_LED_State[well] = false;
+    SendEventCode(DL, well + 1);
+  }
 }
 
 void ToggleLED(){
@@ -709,7 +720,7 @@ void ToggleLED(){
     }  else {
       Well_LED_OFF(well);
     }
-    comm.sendCmd(kAcknowledge,"LED_Toggle");
+    //comm.sendCmd(kAcknowledge,"LED_Toggle");
   } else {
     comm.sendCmd(kError,"Invalid Well");
   }
