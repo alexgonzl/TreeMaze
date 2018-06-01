@@ -30,7 +30,7 @@ const int nWells = 6; // number of reward wells
 const int nCues = 4; // max number of cues.
 const int TTL_PulseDur = 10; // Output TTL Pulse Duration in ms
 const int StateReportInterval = 5000; // send a report every 5 seconds
-bool StateReportFlag = false;
+bool StateReportFlag = true;
 
 // Default values for pump durations
 const long Pump_ON_Default[nWells]   = {6, 6, 12, 12, 12, 12};
@@ -337,13 +337,14 @@ void loop() {
   } else if (SerialState) {
     SerialState = false;
     Reset_States();
+    Serial.flush();
   }
 
   if (StateReportFlag==true){
-    StateReportTimer = millis()-StateReportTimer;
-    if (StateReportTimer>=StateReportInterval){
+    if ((millis()-StateReportTimer)>=StateReportInterval){
       StateReportTimer = millis();
       StateVectorReport();
+      Serial.flush();
       }
   }
 } // end of Main loop()
@@ -531,7 +532,12 @@ void ChangeCueColor(uint32_t col) {
       Pump/Reward Control
 *****************************************/
 void SelectPump_ON() {
-  int well = comm.readBinArg<int>();
+  int wella = comm.readBinArg<int>();
+  int wellb = comm.readBinArg<int>();
+  int wellc = comm.readBinArg<int>();
+
+  int well = findMode3(wella,wellb,wellc);
+  
   if (well >= 0 && well <= 5) {
     TurnOnPump(well);
     //comm.sendCmd(kAcknowledge, "Pump On");
@@ -606,7 +612,12 @@ void SetPumpDur(int well, int dur) {
 *****************************************/
 void SelectWell_ACT() {
   //int well = comm.readInt16Arg();
-  int well = comm.readBinArg<int>();
+  int wella = comm.readBinArg<int>();
+  int wellb = comm.readBinArg<int>();
+  int wellc = comm.readBinArg<int>();
+
+  int well = findMode3(wella,wellb,wellc);
+  
   if (well >= 0 && well <= 5) {
     ActivateWell(well);
     //comm.sendCmd(kAcknowledge, "Activated Well");
@@ -617,7 +628,12 @@ void SelectWell_ACT() {
 
 void SelectWell_DeACT() {
   //int well = comm.readInt16Arg();
-  int well = comm.readBinArg<int>();
+  int wella = comm.readBinArg<int>();
+  int wellb = comm.readBinArg<int>();
+  int wellc = comm.readBinArg<int>();
+
+  int well = findMode3(wella,wellb,wellc);
+  
   if (well >= 0 && well <= 5) {
     DeActivateWell(well);
     //comm.sendCmd(kAcknowledge,"Deactivated Well");
@@ -673,7 +689,12 @@ void Reset_States() {
 *****************************************/
 void LED_ON(){
   //int well = comm.readInt16Arg();
-  int well = comm.readBinArg<int>();
+  int wella = comm.readBinArg<int>();
+  int wellb = comm.readBinArg<int>();
+  int wellc = comm.readBinArg<int>();
+
+  int well = findMode3(wella,wellb,wellc);
+  
   if (well >=0 && well <= 5){
     Well_LED_ON(well);
     //comm.sendCmd(kAcknowledge, "LED ON");
@@ -683,7 +704,12 @@ void LED_ON(){
 }
 void LED_OFF(){
   //int well = comm.readInt16Arg();
-  int well = comm.readBinArg<int>();
+  int wella = comm.readBinArg<int>();
+  int wellb = comm.readBinArg<int>();
+  int wellc = comm.readBinArg<int>();
+
+  int well = findMode3(wella,wellb,wellc);
+  
   if (well >=0 && well <= 5){
     Well_LED_OFF(well);
     //comm.sendCmd(kAcknowledge,"LED OFF");
@@ -739,6 +765,7 @@ void Print_States() {
   char str2[20];
   sprintf(str2,"Active Cue = %d", ActiveCUE_ID);
   comm.sendCmd(kStatus,str2);
+  Serial.flush();
 }
 
 void StateVectorReport(){
@@ -746,6 +773,38 @@ void StateVectorReport(){
   for (int well = 0; well<nWells; well++){
     sprintf(temp,"%d-%d-%d-%d",well,Well_Active_State[well], Well_LED_State[well], Pump_ON_DUR[well]);
     comm.sendCmd(kStateVec,temp);
+  }
+}
+
+int findMode3(int a, int b, int c){
+  int a_count = 1;
+  int b_count = 1;
+  int c_count = 1;
+
+  if (a==b){
+    a_count+=1;
+    b_count+=1;
+  }
+  if (b==c){
+    b_count+=1;
+    c_count+=1;
+  }
+  if (c==a){
+    a_count+=1;
+    c_count+=1;
+  }
+  
+  if (a_count>=b_count and a_count>=c_count){
+    return a;
+    }
+  else if (b_count>=a_count and b_count>=c_count){
+    return b;
+    }
+  else if (c_count>=a_count and c_count>=b_count){
+    return c;
+    }
+  else {
+    return a;
   }
 }
 

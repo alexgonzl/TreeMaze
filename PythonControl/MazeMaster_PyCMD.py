@@ -7,7 +7,8 @@
 
 import threading
 from MazeHeader_PyCMD import *
-PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
+PythonControlSet = ['T2','T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j',
+                    'T4a','T4b','T4c','T4d', 'T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']
 
 # Main Threads:
 def readArduino(arduinoEv, interruptEv):
@@ -18,9 +19,10 @@ def readArduino(arduinoEv, interruptEv):
             # reduce cpu load by reading arduino slower
             time.sleep(0.01)
             try:
+                if MS.IncongruencyFlag and (time.time()-MS.IncongruencyTimer)>1:
+                    MS.Comm.GetStateVec()
+                    
                 ardsigs,data = MS.Comm.ReceiveData()
-                #if len(ardsigs)>0:
-                    #arduinoEv.set()
                 cnt = -1
                 for sig in ardsigs:
                     cnt +=1
@@ -34,22 +36,40 @@ def readArduino(arduinoEv, interruptEv):
                                     #print("Detection on Well #", wellnum)
                                     
                                 elif data[cnt][0:2]=="AW":
-                                    wellnum = int(data[cnt][2])
-                                    MS.Ard_Act_Well_State[wellnum-1]=True
-                                    print("Activated Well #", wellnum)
+                                    wellnum = int(data[cnt][2])-1
+                                    MS.Ard_Act_Well_State[wellnum]=True
+                                    print("Activated Well #", wellnum+1)
+                                    
+                                    if MS.Act_Well[wellnum]==False:
+                                        print('wrong activation')
+                                        MS.InconguencyFlag=True
+                                        MS.IncongruencyTimer=time.time()
+                                    
                                 elif data[cnt][0:2]=="DW":
-                                    wellnum = int(data[cnt][2])
-                                    MS.Ard_Act_Well_State[wellnum-1]=False
-                                    MS.Ard_LED_State[wellnum-1]=False
-                                    print("Deactivated Well #", wellnum)
+                                    wellnum = int(data[cnt][2])-1
+                                    MS.Ard_Act_Well_State[wellnum]=False
+                                    MS.Ard_LED_State[wellnum]=False
+                                    print("Deactivated Well #", wellnum+1)
+                                    if MS.Act_Well[wellnum]==True:
+                                        MS.InconguencyFlag=True
+                                        MS.IncongruencyTimer=time.time()
+                                    
                                 elif data[cnt][0:2]=="AL":
-                                    wellnum = int(data[cnt][2])
-                                    MS.Ard_LED_State[wellnum-1]=True
-                                    print("LED ON Well #", wellnum)
+                                    wellnum = int(data[cnt][2])-1
+                                    MS.Ard_LED_State[wellnum]=True
+                                    print("LED ON Well #", wellnum+1)
+                                    if MS.LED_State[wellnum]==False:
+                                        print('wrong led activation')
+                                        MS.InconguencyFlag=True
+                                        MS.IncongruencyTimer=time.time()
+                                    
                                 elif data[cnt][0:2]=="DL":
-                                    wellnum = int(data[cnt][2])
-                                    MS.Ard_LED_State[wellnum-1]=False
-                                    print("LED OFF Well #", wellnum)
+                                    wellnum = int(data[cnt][2])-1
+                                    MS.Ard_LED_State[wellnum]=False
+                                    if MS.LED_State[wellnum]==True:
+                                        MS.InconguencyFlag=True
+                                        MS.IncongruencyTimer=time.time()
+                                    print("LED OFF Well #", wellnum+1)
 
                                 if MS.saveFlag:
                                     logEvent(data[cnt],MS)
@@ -64,9 +84,6 @@ def readArduino(arduinoEv, interruptEv):
                             MS.InnerStateCheck(int(data[cnt][0]))
                         except:
                             print("Error updating states",sys.exc_info())
-                if MS.IncongruencyFlag and (time.time()-MS.IncongruencyTimer)>0.5:
-                    MS.Comm.GetStateVec()
-                        
             
             except:
                 print ("Error Processing Incoming Data", sys.exc_info())
