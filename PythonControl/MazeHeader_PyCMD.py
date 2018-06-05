@@ -260,7 +260,8 @@ class ArdComm(object):
 
     def DeliverReward(self,well):
         if well>=0 and well <=5:
-            self.con.send("kSelectPump_ON",well,arg_formats="i")
+            print(well)
+            self.con.send("kSelectPump_ON",well,well,well,arg_formats="iii")
 
     def ChangeReward(self,well, dur):
         if well>=0 and well <=5:

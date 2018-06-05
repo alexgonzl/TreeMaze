@@ -70,6 +70,8 @@ def readArduino(arduinoEv, interruptEv):
                                         MS.InconguencyFlag=True
                                         MS.IncongruencyTimer=time.time()
                                     print("LED OFF Well #", wellnum+1)
+                                elif data[cnt][0:2]=="RE":
+                                    print("Reward Delivered to ", wellnum+1)
 
                                 if MS.saveFlag:
                                     logEvent(data[cnt],MS)
