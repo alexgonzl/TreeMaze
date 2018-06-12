@@ -19,32 +19,33 @@ def readArduino(arduinoEv, interruptEv):
             # reduce cpu load by reading arduino slower
             time.sleep(0.01)
             try:
-                if MS.IncongruencyFlag and (time.time()-MS.IncongruencyTimer)>1:
-                    MS.Comm.GetStateVec()
+                if MS.PythonControlFlag:
+                  if MS.IncongruencyFlag and (time.time()-MS.IncongruencyTimer)>1:
+                      MS.Comm.GetStateVec()
                     
-                ardsigs,data = MS.Comm.ReceiveData()
-                cnt = -1
-                for sig in ardsigs:
-                    cnt +=1
-                    if sig==2:
-                        try:
-                            if MS.PythonControlFlag:
+                    ardsigs,data = MS.Comm.ReceiveData()
+                    cnt = -1
+                    for sig in ardsigs:
+                        cnt +=1
+                        if sig==2:
+                            try:
                                 if data[cnt][0:2]=="DE":
                                     wellnum = int(data[cnt][2])
                                     MS.Ard_Act_Well_State[wellnum-1]=False
-                                    MS.DETECT(wellnum)
+                                    if MS.PythonControlFlag:
+                                      MS.DETECT(wellnum)
                                     #print("Detection on Well #", wellnum)
-                                    
+
                                 elif data[cnt][0:2]=="AW":
                                     wellnum = int(data[cnt][2])-1
                                     MS.Ard_Act_Well_State[wellnum]=True
                                     print("Activated Well #", wellnum+1)
-                                    
+
                                     if MS.Act_Well[wellnum]==False:
                                         print('wrong activation')
                                         MS.InconguencyFlag=True
                                         MS.IncongruencyTimer=time.time()
-                                    
+
                                 elif data[cnt][0:2]=="DW":
                                     wellnum = int(data[cnt][2])-1
                                     MS.Ard_Act_Well_State[wellnum]=False
@@ -53,7 +54,7 @@ def readArduino(arduinoEv, interruptEv):
                                     if MS.Act_Well[wellnum]==True:
                                         MS.InconguencyFlag=True
                                         MS.IncongruencyTimer=time.time()
-                                    
+
                                 elif data[cnt][0:2]=="AL":
                                     wellnum = int(data[cnt][2])-1
                                     MS.Ard_LED_State[wellnum]=True
@@ -62,7 +63,7 @@ def readArduino(arduinoEv, interruptEv):
                                         print('wrong led activation')
                                         MS.InconguencyFlag=True
                                         MS.IncongruencyTimer=time.time()
-                                    
+
                                 elif data[cnt][0:2]=="DL":
                                     wellnum = int(data[cnt][2])-1
                                     MS.Ard_LED_State[wellnum]=False
@@ -75,17 +76,17 @@ def readArduino(arduinoEv, interruptEv):
 
                                 if MS.saveFlag:
                                     logEvent(data[cnt],MS)
-                        except:
-                            print("Error Processing Arduino Event.", sys.exc_info())
+                            except:
+                                print("Error Processing Arduino Event.", sys.exc_info())
 
-                    if sig == 4:
-                        try:
-                            #print("Updating arduino states.")
-                            MS.UpdateArdStates(data[cnt])
-                            #print(data[cnt])
-                            MS.InnerStateCheck(int(data[cnt][0]))
-                        except:
-                            print("Error updating states",sys.exc_info())
+                        if sig == 4:
+                            try:
+                                #print("Updating arduino states.")
+                                MS.UpdateArdStates(data[cnt])
+                                #print(data[cnt])
+                                MS.InnerStateCheck(int(data[cnt][0]))
+                            except:
+                                print("Error updating states",sys.exc_info())
             
             except:
                 print ("Error Processing Incoming Data", sys.exc_info())
