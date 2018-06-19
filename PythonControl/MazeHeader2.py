@@ -7,7 +7,6 @@ from transitions.extensions.states import add_state_features, Timeout
 #from transitions.extensions.states import add_state_features, Timeout, State
 import random, copy
 import numpy as np
-import PyCmdMessenger
 from collections import Counter
 
 # #gpio.setmode(gpio.BOARD)
@@ -25,6 +24,8 @@ def close(MS):
     if MS.headFile:
         if hasattr(MS.headFile,'close'):
             MS.headFile.close()
+    if MS.saveFlag:
+        np.save(MS.npyFile,MS.data)
     MS.Comm.close()
 
 def ParseArguments():
@@ -87,12 +88,15 @@ def ParseArguments():
         # Data file
         datFile = open("%s%s.csv" % (save_folder,filename),'w')
 
+        # numpy file name
+        npyFile = "%s%s" % (save_folder,filename)
     else:
         saveFlag = False
         headFile=[]
         datFile =[]
+        npyFile =[]
 
-    return expt, baud, verbose, headFile, datFile, saveFlag
+    return expt, baud, verbose, headFile, datFile, saveFlag, npyFile
 
 def logEvent(code,MS):
     try:
@@ -117,22 +121,6 @@ class ArdComm(object):
         # empty the buffer
         self.ard.readline()
         self.ard.readline()
-
-    def ard_reconnect(self):
-        if not self.ard._is_connected:
-            try:
-                #self.ard = PyCmdMessenger.ArduinoBoard('\\.\COM3', baud_rate=baud, timeout=0.1)
-                self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
-            except:
-                #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
-                self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
-
-
-            self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
-            self.verbose = verbose
-            # empty the buffer
-            self.ard.readline()
-            self.ard.readline()
 
     def close(self):
         self.ard.close()
@@ -159,7 +147,6 @@ class ArdComm(object):
             return [[''],['']]
 
     def ReceiveData(self):
-
         try:
             ardSignal = []
             ardDat = []
@@ -349,23 +336,38 @@ class ArdComm(object):
         self.SendChar('r')
 
 class Maze(object):
-    def __init__(self, Comm, protocol="null",headFile=[],datFile =[],saveFlag=False):
+    def __init__(self, Comm, protocol="null",headFile=[],datFile =[],npyFile=[],saveFlag=False):
         try:
             self.Comm = Comm
             self.Protocol = protocol
             self.headFile = headFile
             self.datFile = datFile
+            self.npyFile  = npyFile
             self.saveFlag = saveFlag
 
             self.PythonControlFlag = False
             self.time_ref = time.time()
 
-            self.T3_Protocols = ['T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j']
-            self.T4_Protocols = ['T4a','T4b','T4c','T4d']
-            self.T5_Protocols = ['T5La','T5Lb','T5Lc','T5Ra','T5Rb','T5Rc']
+            self._T3_Protocols = ['T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j']
+            self._T4_Protocols = ['T4a','T4b','T4c','T4d']
+            self._T5_Protocols = ['T5La','T5Lb','T5Lc','T5Ra','T5Rb','T5Rc']
 
             if protocol!="null":
                 # Settings
+                self.DefaultRewardDurations = np.array([4,5,10,10,10,12])
+                self.RewardDurations = np.array([4,5,10,10,10,12])
+                self.TimeOutDuration = 10 # seconds to  wait post incorrect trial.
+                # number of consecuitve trials to a given well results in a
+                # change of reward. This is a protocol specific variable.
+                self.ChangeRewardDur = 6
+                # This variable changes the  behavior of the maze for a given number of Trials.
+                # this is a protocol specific variable.
+                self.EarlyTrialThr = 4
+                # time to deactivate cue post decision well (if applicable to protocol)
+                self.CueDeactivateTime =  2
+
+
+                # Stable Variable Initiation.
                 self.nWells = 6
                 self.Wells = np.arange(self.nWells)
                 self.GoalWells = [2,3,4,5]
@@ -373,36 +375,29 @@ class Maze(object):
                 self.RightGoals = [2,3]
                 self.nCues = 6
 
+                #  State Variables.
                 self.Act_Well = np.zeros(self.nWells,dtype=bool)
                 self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
                 self.LED_State = np.zeros(self.nWells,dtype=bool)
                 self.Act_Cue  = 0
                 self.Act_Cue_State = False
                 self.Queued_Cue = 0
+
+                # Record keeping variables
                 self.DetectedGoalWell = -1
                 self.PrevDetectGoalWell = -1
                 self.WellDetectSeq = []
                 self.ValidWellDetectSeq = []
-                self.SwitchProb = 0
+                self.DetectionTracker = np.zeros(self.nWells)
+                self.CorrectWellsTracker = np.zeros(self.nWells)
+                self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
 
-                if self.Protocol[:2] in ['T3','T4','T5']:
-                    while True:
-                        temp = input('Please enter cue switch probability [0 to 100].')
-                        if int(temp)>=0 and int(temp)<=100:
-                           self.SwitchProb = float(temp)/100.0
-                           break
-                        else:
-                            print('Invalid Switch Probability')
-
-                self.TimeOutDuration = 10
-                self.SwitchFlag = False
-
-                states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
+                self.DataFields = ['TrialNum','CueID','GoalID','FirstDetectedGoal',
+                'SecDetectedGoal','TrialDur','Correct',
+                'SwitchTrial','SoftwareErrorFlag']
+                self.Data = np.zeros(len(self.DataFields))
 
                 # Reward Tracking
-                self.DefaultRewardDurations = np.array([5,5,10,10,10,10])
-                self.RewardDurations = np.array([5,5,10,10,10,10])
-                self.ChangeRewardDur = 6
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
                 self.TotalRewardDur = 0
@@ -413,38 +408,61 @@ class Maze(object):
 
                 # Trial Tracking
                 self.TrialCounter = 0
+                self.TrialTime = -1
+                self.TrialDur = -1
+                self.CueTimerFlag = False
+                self.CueTimer = -1
                 self.CorrectTrialFlag = False
                 self.IncorrectTrialFlag = False
                 self.NumCorrectTrials = 0
                 self.NumConsecutiveCorrectTrials = 0
+                self.TrialGoalWell = -1
+                self.TrialFirstDetectedGoal = -1
+                self.TrialSecondDetectedGoal = -1
                 self.IncorrectArm = 0
                 self.IncorrectGoal = 0
-                self.CorrectAfterSwitch = 0
                 self.NumSwitchTrials = 0
-                self.EarlyTrialThr = 4
-                self.DetectionTracker = np.zeros(self.nWells)
-                self.CorrectWellsTracker = np.zeros(self.nWells)
-                self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
+                self.CorrectAfterSwitch = 0
+                self.SwitchProb = 0
+                self.SwitchFlag = False
+                self.SoftwareErrorFlag=False
+
+                # random initiation to chance variables
+                self.PrevDetectedGoalWell = np.random.choice(self.GoalWells)
+                self.PrevDetectedRightGoalWell = np.random.choice(self.RightGoals)
+                self.PrevDetectedLeftGoalWell = np.random.choice(self.LeftGoals)
 
                 # True states from arduino
                 self.Ard_Act_Well_State = np.zeros(self.nWells,dtype=bool)
                 self.Ard_LED_State = np.zeros(self.nWells,dtype=bool)
                 self.Ard_Reward_Dur = np.zeros(self.nWells)
 
+                # Ard/Python state incongruency variables.
+                self.IncongruencyFlag=False
+                self.IncongruencyTimer = time.time()+120
+
+                if self.Protocol[:2] in ['T3','T4','T5']:
+                    while True:
+                        try:
+                            temp = input('Please enter cue switch probability [0 to 100].')
+                            if int(temp)>=0 and int(temp)<=100:
+                               self.SwitchProb = float(temp)/100.0
+                               break
+                            else:
+                                print('Invalid Switch Probability')
+                        except:
+                            print("Error interpreting probability,  try again.")
+                            continue
+                # State machine creation specefic by protocol
+                states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
                 StateMachine = Machine2(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
 
-                self.IncongruencyFlag=False
-                self.IncongruencyTimer = time.time()+120
+                #  Detection Trigger Creation. Includes a dummy D0 trigger.
                 self.TRIGGER = []
-                # dummy first append tr
                 self.TRIGGER.append(getattr(self,'D0'))
                 for well in (self.Wells+1):
                     self.TRIGGER.append(getattr(self,'D'+str(well)))
-
-                self.PrevDetectedGoalWell = np.random.choice(self.GoalWells)
-                self.PrevDetectedRightGoalWell = np.random.choice(self.RightGoals)
-                self.PrevDetectedLeftGoalWell = np.random.choice(self.LeftGoals)
 
         except:
             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
@@ -490,6 +508,12 @@ class Maze(object):
         #well = event.kwargs.get('well',0)
         try:
             self.WellDetectSeq.append(well)
+            if (self.TrialGoalWell>2) and (well in self.GoalWells):
+                if self.TrialFirstDetectedGoal == -1:
+                    self.TrialFirstDetectedGoal = well
+                if self.TrialSecondDetectedGoal == -1:
+                    self.TrialSecondDetectedGoal = well
+
             well = well-1 # zero indexing the wells
             self.DetectionTracker[well] += 1
 
@@ -648,6 +672,11 @@ class Maze(object):
         # send command to deactivate cue, but does not disable the use of cue
         self.Comm.DeActivateCue()
 
+    def deactivate_cue_timer(self):
+        # deactivates cue after a determine time has elapsed
+        self.CueTimerFlag = True
+        self.CueTimer = time.time()
+
     ############# Well Functions ###############################################
     def activate_well(self,well):
         try:
@@ -803,12 +832,14 @@ class Maze(object):
             print (sys.exc_info())
 
     def G3456(self):
+        self.TrialGoalWell = 3456
         return True
 
     ## right goals
     def G34(self):
         if self.Protocol[:2] in ['T3','T5']:
             if self.Act_Cue==5:
+                self.TrialGoalWell = 34
                 return True
         return False
 
@@ -816,11 +847,16 @@ class Maze(object):
         if self.Act_Cue==1 or self.Act_Cue==2 or self.Act_Cue==5:
             if self.Protocol[:2] in ['T4','T5']:
                 if self.PrevDetectedRightGoalWell==3:
+                    self.TrialGoalWell = 3
                     return True
                 else:
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
-                return random.random()<0.5
+                if random.random()<0.5:
+                    self.TrialGoalWell = 3
+                    return True
+                else:
+                    return False
             else:
                 return True
         return False
@@ -829,10 +865,12 @@ class Maze(object):
         if self.Act_Cue==1 or self.Act_Cue==2 or self.Act_Cue==5:
             if self.Protocol[:2] in ['T4','T5']:
                 if self.PrevDetectedRightGoalWell==2:
+                    self.TrialGoalWell = 4
                     return True
                 else:
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
+                self.TrialGoalWell = 4
                 return True
             else:
                 return True
@@ -842,19 +880,26 @@ class Maze(object):
     def G56(self):
         if self.Protocol[:2] in ['T3','T5']:
             if self.Act_Cue==6:
-              return True
+                self.TrialGoalWell = 56
+                return True
         return False
 
     def G5(self):
         if self.Act_Cue==3 or self.Act_Cue==4 or self.Act_Cue==6:
             if self.Protocol[:2] in ['T4','T5']:
                 if self.PrevDetectedLeftGoalWell==5:
+                    self.TrialGoalWell = 5
                     return True
                 else:
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
-                return random.random()<0.5
+                if random.random()<0.5:
+                    self.TrialGoalWell = 5
+                    return True
+                else:
+                    return False
             else:
+                self.TrialGoalWell = 5
                 return True
         return False
 
@@ -862,10 +907,12 @@ class Maze(object):
         if self.Act_Cue==3 or self.Act_Cue==4 or self.Act_Cue==6:
             if self.Protocol[:2] in ['T4','T5']:
                 if self.PrevDetectedLeftGoalWell==4:
+                    self.TrialGoalWell = 6
                     return True
                 else:
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
+                self.TrialGoalWell = 6
                 return True
             else:
                 return True
@@ -913,6 +960,20 @@ class Maze(object):
 
     # Trial Processing
     def next_trial(self):
+        # data storage
+        tc = self.TrialCounter
+        if tc>0:
+            self.Data[tc,0]=self.TrialCounter
+            self.Data[tc,1]=self.Act_Cue
+            self.Data[tc,2]=self.TrialGoalWell
+            self.Data[tc,3]=self.TrialFirstDetectedGoal
+            self.Data[tc,4]=self.TrialSecondDetectedGoal
+            self.Data[tc,5]=self.TrialDur
+            self.Data[tc,6]=self.CorrectTrialFlag
+            self.Data[tc,7]=self.SwitchFlag
+            self.Data[tc,8]=self.SoftwareErrorFlag
+
+        # updates for next trial
         self.TrialCounter +=1
         if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             rr = random.random()
@@ -930,8 +991,17 @@ class Maze(object):
         else:
             return False
 
+    def TrialStart(self):
+        self.TrialTime=time.time()
+        self.TrialFirstDetectedGoal = -1
+        self.TrialSecondDetectedGoal = -1
+
     def correctTrial(self):
         if not self.IncorrectTrialFlag:
+            self.TrialDur = self.TrialTime-time.time()
+            self.CorrectTrialFlag = True
+            self.NumCorrectTrials += 1
+            self.NumConsecutiveCorrectTrials += 1
             if self.SwitchFlag and self.NumConsecutiveCorrectTrials>0:
                 self.CorrectAfterSwitch += 1
                 self.SwitchFlag= False
@@ -940,11 +1010,8 @@ class Maze(object):
                 ## self.Comm.DeliverReward(1)
                 ## self.rewardDelivered2()
 
-            self.CorrectTrialFlag = True
-            self.NumCorrectTrials += 1
-            self.NumConsecutiveCorrectTrials += 1
-
     def incorrectT3(self):
+        self.TrialDur = self.TrialTime-time.time()
         self.IncorrectTrialFlag = True
         self.CorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
@@ -952,15 +1019,17 @@ class Maze(object):
         print('Incorrect arm. Time-Out')
 
     def incorrectT4_goal(self):
+        self.TrialDur = self.TrialTime-time.time()
         self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectGoal += 1
 
-        if self.TrialCounter >=5 and self.Protocol in ['T4b','T4c']:
-            self.LED_ON()
+        # if self.TrialCounter >=5 and self.Protocol in ['T4b','T4c']:
+        #     self.LED_ON()
 
     def incorrectT4_arm(self):
+        self.TrialDur = self.TrialTime-time.time()
         self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
@@ -972,7 +1041,7 @@ def MS_Setup(protocol,timeoutdur):
         conditions = ['G3','G4','G5','G6','G34','G56','G3456']
         states =  [
             State(name='AW0', on_enter=['disable_cue','update_states'], ignore_invalid_triggers=True),
-            State(name='AW1',on_enter=['next_trial','update_states','deactivate_cue','enable_cue'],on_exit=['activate_cue'], ignore_invalid_triggers=True),
+            State(name='AW1',on_enter=['next_trial','update_states','deactivate_cue','enable_cue'],on_exit=['TrialStart','activate_cue'], ignore_invalid_triggers=True),
             State(name='AW2',on_enter=['update_states'],ignore_invalid_triggers=True),
             State(name='AW3',on_enter='update_states',ignore_invalid_triggers=True),
             State(name='AW4',on_enter='update_states',ignore_invalid_triggers=True),
