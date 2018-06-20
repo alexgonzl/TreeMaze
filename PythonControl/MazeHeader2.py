@@ -114,9 +114,20 @@ class ArdComm(object):
         try:
             self.ard = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
         except:
-            self.ard = serial.Serial('/dev/ttyUSB1',baud,timeout=0.1)
-        self.ard.reset_input_buffer()
-        self.ard.reset_output_buffer()
+            #self.ard = serial.Serial('/dev/ttyUSB1',baud,timeout=0.1)
+            self.ard = serial.Serial('/dev/ttyACM1',baud,timeout=0.1)
+            
+
+        #self.ard.flush()
+        #self.ard.reset_input_buffer()
+        if hasattr(self.ard,'reset_input_buffer'):
+            self.ard.reset_input_buffer()
+        elif hasattr(self.ard,'flushInput'):
+            self.ard.flushInput()
+        if hasattr(self.ard,'reset_output_buffer'):
+            self.ard.reset_output_buffer()
+        elif hasattr(self.ard,'flushOutput'):
+            self.ard.flushOutput()
         self.verbose = verbose
         # empty the buffer
         self.ard.readline()
@@ -133,72 +144,85 @@ class ArdComm(object):
         self.ard.write(ch.encode())
 
     def datsplit(self,data):
-        if isinstance(data,str):
-            commands = data.split(';')
-            out_list=[]
-            for com in commands:
-                com_elem = com.split(',')
-                com_list = []
-                for el in com_elem:
-                    com_list.append(el)
-                out_list.append(com_list)
-            return out_list
-        else:
-            return [[''],['']]
+        try:
+            if isinstance(data,str) and data!='':
+                commands = data.split(';')
+                #out_list=[]
+                #for com in commands:
+                #    com_elem = com.split(',')
+                #    com_list = []
+                #    for el in com_elem:
+                #        com_list.append(el)
+                #    out_list.append(com_list)
+                return commands
+            else:
+                return ['','']
+        except:
+            print('Data Splittig Error', sys.exc_info())
+            return ['','']
+            
 
     def ReceiveData(self):
         try:
             ardSignal = []
             ardDat = []
             data = self.ard.readline()
+            
+            time.sleep(1)
             if isinstance(data,bytes):
-                dat = data.decode()
-                dat_list = self.datsplit(dat)
-
-                for x in dat_list:
-                    sig = x[0]
-                    if sig!='': # if not empty
-                        if sig == '0': # acknowledge signal from arduino
-                            ardSignal.append(0)
-                            ardDat.append([])
-                            if self.verbose:
-                                if len(x)>1:
-                                    print("Ack. ",x[1])
-                                else:
-                                    print ("Ack from arduino.")
-                        elif sig == '1': # error signal from arduinoEv
-                            ardSignal.append(1)
-                            ardDat.append([])
-                            print ("Arduino sent an error.")
-                            print(x[1])
-                        elif sig == '2': # event signal
-                            ardSignal.append(2)
-                            ardDat.append(x[1])
-                        elif sig == '3': # ard status
-                            ardSignal.append(3)
-                            ardDat.append([])
-                            print(x[1])
-                        elif sig == '4': # state vector
+                dat = data.decode().strip('\r\n').split(';')
+                x = dat
+                #x = self.datsplit(dat)
+                #print(x,len(x))
+                #print(dat_list)
+                #for x in dat_list:
+               
+                sig = x[0]
+                if sig!='': # if not empty
+                    if sig == '0': # acknowledge signal from arduino
+                        ardSignal.append(0)
+                        ardDat.append([])
+                        if self.verbose:
+                            if len(x)>1:
+                                print("Ack. ",x[1])
+                            else:
+                                print ("Ack from arduino.")
+                    elif sig == '1': # error signal from arduinoEv
+                        ardSignal.append(1)
+                        ardDat.append(x[1])
+                        print ("Arduino sent an error.")
+                        #print(x[1])
+                    elif sig == '2': # event signal
+                        ardSignal.append(2)
+                        ardDat.append(x[1])
+                    elif sig == '3': # ard status
+                        ardSignal.append(3)
+                        ardDat.append([])
+                        print(x[1])
+                    elif sig == '4': # state vector
+                        try:
                             dat_state = list(map(int,x[1].split('-')))
                             ardSignal.append(4)
                             ardDat.append(dat_state)
-                            if self.verbose:
-                                print(x[1])
-                        else:
-                            ardSignal.append(10)
-                            ardDat.append([])
-
-                    elif len(x)>1:
+                        except:
+                            print('Error reading an arduino data update',sys.exc_info())
                         if self.verbose:
                             print(x[1])
+                    else:
+                        ardSignal.append(-1)
+                        ardDat.append([])
 
-                return ardSignal,ardDat
+               # elif len(x)>1:
+               #     if self.verbose:
+               #         print(x[1])
+
+            return ardSignal,ardDat
         except UnicodeDecodeError:
             print('Decoding data error.', sys.exc_info())
             print(ardSignal,ardDat)
             return ardSignal,ardDat
         except:
-            print("Error reading data. ", sys.exc_info())
+            print("Error reading data. ", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2])
             return ardSignal,ardDat
 
     def GetStateVec(self):
@@ -218,10 +242,14 @@ class ArdComm(object):
 
     def ActivateAllWells(self):
         #self.con.send("kActivateAllWells")
-        self.SendChar("x")
-        self.SendChar("w")
-        self.SendChar("A")
-        self.SendChar("y")
+        self.SendChar('x')
+        time.sleep(0.01)
+        self.SendChar('w')
+        time.sleep(0.01)
+        self.SendChar('A')
+        time.sleep(0.01)
+        self.SendChar('y')
+        time.sleep(0.01)
 
     def ActivateWell(self,well):
         if well>=0 and well <=5:
@@ -247,7 +275,7 @@ class ArdComm(object):
         self.SendChar("D")
         self.SendChar("y")
 
-    def All_LED_ON(self)::
+    def All_LED_ON(self):
         self.SendChar("x")
         self.SendChar("l")
         self.SendChar("A")
@@ -261,7 +289,7 @@ class ArdComm(object):
             self.SendDigit(well)
             self.SendChar("y")
 
-    def All_LED_OFF(self)::
+    def All_LED_OFF(self):
         self.SendChar("x")
         self.SendChar("l")
         self.SendChar("D")
@@ -301,10 +329,10 @@ class ArdComm(object):
         if well>=0 and well <=5:
             self.SendChar("x")
             self.SendChar("p")
-            self.sendChar("c")
+            self.SendChar("c")
             self.SendChar("w")
             self.SendDigit(well)
-            self.sendChar("d")
+            self.SendChar("d")
             dur_str = str(dur)
             if len(dur_str)==1:
                 dur_str='00'+dur_str
@@ -322,7 +350,7 @@ class ArdComm(object):
                 self.SendChar("s")
                 self.SendChar("w")
                 self.SendDigit(well)
-                self.sendChar("d")
+                self.SendChar("d")
                 dur_str = str(dur)
                 if len(dur_str)==1:
                     dur_str='00'+dur_str
