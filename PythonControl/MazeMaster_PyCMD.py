@@ -20,8 +20,8 @@ def readArduino(arduinoEv, interruptEv):
             time.sleep(0.01)
             try:
                 if MS.PythonControlFlag:
-                  if MS.IncongruencyFlag and (time.time()-MS.IncongruencyTimer)>1:
-                      MS.Comm.GetStateVec()
+                    if MS.IncongruencyFlag and (time.time()-MS.IncongruencyTimer)>1:
+                        MS.Comm.GetStateVec()
                     
                     ardsigs,data = MS.Comm.ReceiveData()
                     cnt = -1
