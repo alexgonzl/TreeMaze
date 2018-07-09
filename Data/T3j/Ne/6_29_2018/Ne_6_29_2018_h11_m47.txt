@@ -1,0 +1,7 @@
+Date: 6_29_2018 
+Current Time: 11:47:50 
+Experimenter: Alex 
+Subject: Ne 
+Experiment: T3j 
+Baud Rate: 115200 
+Experiment Code: XXXX 
