@@ -1,0 +1,29 @@
+Date: 7_10_2018 
+Current Time: 14:00:20 
+Experimenter: David 
+Subject: Al 
+Experiment: T3h 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Last Cue Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 1786.488703 
+Number of Trials = 150 
+Number of Correct Trials = 111 
+Number of Switches = 68 
+Number of Correct Trials after a Switch = 35 
+Number of Incorrect Arm Trials = 35 
+Number of Incorrect Goal Trials = 0 
+Number of Well Detections: 
+248, 153, 58, 41, 28, 35
+Number of Correct Well Detections: 
+146, 146, 35, 33, 24, 19
+Total Reward Duration = 2745 
+Number of Rewards Per Well:
+181, 146, 35, 33, 24, 19
+Total Reward Duration Per Well:
+905, 730, 350, 330, 240, 190
