@@ -1,0 +1,7 @@
+Date: 7_27_2018 
+Current Time: 10:28:11 
+Experimenter: David 
+Subject: Cl 
+Experiment: T3h 
+Baud Rate: 115200 
+Experiment Code: XXXX 
