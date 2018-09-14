@@ -1,0 +1,7 @@
+Date: 8_10_2018 
+Current Time: 09:19:01 
+Experimenter: David 
+Subject: Si 
+Experiment: T3g 
+Baud Rate: 115200 
+Experiment Code: XXXX 
