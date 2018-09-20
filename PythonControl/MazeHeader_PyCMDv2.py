@@ -1,17 +1,14 @@
+# hybrid temporary script between old _PyCMD and new but non-functional v2
 
 import os, sys, argparse
 import serial, string, sys, struct, datetime, time
 from transitions import Machine, State
 from transitions.extensions.states import add_state_features, Timeout
-#from transitions import Machine
-#from transitions.extensions.states import add_state_features, Timeout, State
 import random, copy
 import numpy as np
+import PyCmdMessenger
 from collections import Counter
 
-# #gpio.setmode(gpio.BOARD)
-# GPIOChans = [33,35,36,37,38,40]
-# IRD_GPIOChan_Map = {1:33, 2:35, 3:36, 4:37, 5:38, 6:40}
 @add_state_features(Timeout)
 
 class Machine2(Machine):
@@ -110,258 +107,181 @@ def logEvent(code,MS):
 
 class ArdComm(object):
     """Spetialized functions for arduino communication."""
+    # Must be in same order in arduino
+    COMMANDS = [["kAcknowledge",""],   # 0
+     ["kError","s"],                    # 1
+     ["kSendEvent","s"],                # 2
+     ["kPrintStatus","s*"],             # 3
+     ["kStateVec","s*"],                # 4
+     ["kActivateAllWells",""],          # 5 -
+     ["kSelectWell_ACT",""],            # 6 -
+     ["kSelectWell_DeACT",""],          # 7 -
+     ["kToggleLED",""],                 # 8 -
+     ["kLED_ON",""],                    # 9 -
+     ["kLED_OFF",""],                   # 10 -
+     ["kSelectPump_ON",""],             # 11 -
+     ["kChangePumpDur",""],             # 12 -
+     ["kTurnPumpOnForXDur",""],         # 13 -
+     ["kSelectCUE_ON",""],              # 14 -
+     ["kTurnCUE_OFF",""],               # 15 -
+     ["kPrint_States",""],              # 16 -
+     ["kStatusReq",""],                 # 17
+     ["kReset_States",""],              # 18 -
+      ]
+
     def __init__(self,baud,verbose=False):
         try:
-            self.ard = serial.Serial('/dev/ttyUSB0',baud,timeout=0.1)
+            #self.ard = PyCmdMessenger.ArduinoBoard('\\.\COM3', baud_rate=baud, timeout=0.1)
+            self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
         except:
-            #self.ard = serial.Serial('/dev/ttyUSB1',baud,timeout=0.1)
-            self.ard = serial.Serial('/dev/ttyACM1',baud,timeout=0.1)
-            
+            #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
+            self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
 
-        #self.ard.flush()
-        #self.ard.reset_input_buffer()
-        if hasattr(self.ard,'reset_input_buffer'):
-            self.ard.reset_input_buffer()
-        elif hasattr(self.ard,'flushInput'):
-            self.ard.flushInput()
-        if hasattr(self.ard,'reset_output_buffer'):
-            self.ard.reset_output_buffer()
-        elif hasattr(self.ard,'flushOutput'):
-            self.ard.flushOutput()
+
+        self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
         self.verbose = verbose
         # empty the buffer
         self.ard.readline()
         self.ard.readline()
 
+    def ard_reconnect(self):
+        if not self.ard._is_connected:
+            try:
+                #self.ard = PyCmdMessenger.ArduinoBoard('\\.\COM3', baud_rate=baud, timeout=0.1)
+                self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
+            except:
+                #self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyUSB0', baud_rate=baud, timeout=0.1)
+                self.ard = PyCmdMessenger.ArduinoBoard('/dev/ttyACM0', baud_rate=baud, timeout=0.1)
+
+
+            self.con = PyCmdMessenger.CmdMessenger(board_instance = self.ard, commands= self.COMMANDS, warnings=False)
+            self.verbose = verbose
+            # empty the buffer
+            self.ard.readline()
+            self.ard.readline()
+
     def close(self):
         self.ard.close()
 
-    def SendDigit(self,num):
-        # arduino reads wells zero based. adding
-        self.ard.write(bytes([num+48]))
-
-    def SendChar(self,ch):
-        self.ard.write(ch.encode())
-
     def datsplit(self,data):
-        try:
-            if isinstance(data,str) and data!='':
-                commands = data.split(';')
-                #out_list=[]
-                #for com in commands:
-                #    com_elem = com.split(',')
-                #    com_list = []
-                #    for el in com_elem:
-                #        com_list.append(el)
-                #    out_list.append(com_list)
-                return commands
-            else:
-                return ['','']
-        except:
-            print('Data Splittig Error', sys.exc_info())
-            return ['','']
-            
+        if isinstance(data,str):
+            commands = data.split(';')
+            out_list=[]
+            for com in commands:
+                com_elem = com.split(',')
+                com_list = []
+                for el in com_elem:
+                    com_list.append(el)
+                out_list.append(com_list)
+            return out_list
+        else:
+            return [[''],['']]
 
     def ReceiveData(self):
+
         try:
             ardSignal = []
             ardDat = []
             data = self.ard.readline()
-            
-            time.sleep(1)
             if isinstance(data,bytes):
-                dat = data.decode().strip('\r\n').split(';')
-                x = dat
-                #x = self.datsplit(dat)
-                #print(x,len(x))
-                #print(dat_list)
-                #for x in dat_list:
-               
-                sig = x[0]
-                if sig!='': # if not empty
-                    if sig == '0': # acknowledge signal from arduino
-                        ardSignal.append(0)
-                        ardDat.append([])
-                        if self.verbose:
-                            if len(x)>1:
-                                print("Ack. ",x[1])
-                            else:
-                                print ("Ack from arduino.")
-                    elif sig == '1': # error signal from arduinoEv
-                        ardSignal.append(1)
-                        ardDat.append(x[1])
-                        print ("Arduino sent an error.")
-                        #print(x[1])
-                    elif sig == '2': # event signal
-                        ardSignal.append(2)
-                        ardDat.append(x[1])
-                    elif sig == '3': # ard status
-                        ardSignal.append(3)
-                        ardDat.append([])
-                        print(x[1])
-                    elif sig == '4': # state vector
-                        try:
+                dat = data.decode()
+                dat_list = self.datsplit(dat)
+
+                for x in dat_list:
+                    sig = x[0]
+                    if sig!='': # if not empty
+                        if sig == '0': # acknowledge signal from arduino
+                            ardSignal.append(0)
+                            ardDat.append([])
+                            if self.verbose:
+                                if len(x)>1:
+                                    print("Ack. ",x[1])
+                                else:
+                                    print ("Ack from arduino.")
+                        elif sig == '1': # error signal from arduinoEv
+                            ardSignal.append(1)
+                            ardDat.append([])
+                            print ("Arduino sent an error.")
+                            print(x[1])
+                        elif sig == '2': # event signal
+                            ardSignal.append(2)
+                            ardDat.append(x[1])
+                        elif sig == '3': # ard status
+                            ardSignal.append(3)
+                            ardDat.append([])
+                            print(x[1])
+                        elif sig == '4': # state vector
                             dat_state = list(map(int,x[1].split('-')))
                             ardSignal.append(4)
                             ardDat.append(dat_state)
-                        except:
-                            print('Error reading an arduino data update',sys.exc_info())
+                            if self.verbose:
+                                print(x[1])
+                        else:
+                            ardSignal.append(10)
+                            ardDat.append([])
+
+                    elif len(x)>1:
                         if self.verbose:
                             print(x[1])
-                    else:
-                        ardSignal.append(-1)
-                        ardDat.append([])
 
-               # elif len(x)>1:
-               #     if self.verbose:
-               #         print(x[1])
-
-            return ardSignal,ardDat
+                return ardSignal,ardDat
         except UnicodeDecodeError:
             print('Decoding data error.', sys.exc_info())
             print(ardSignal,ardDat)
             return ardSignal,ardDat
         except:
-            print("Error reading data. ", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2])
+            print("Error reading data. ", sys.exc_info())
             return ardSignal,ardDat
 
     def GetStateVec(self):
-        #self.con.send("kStatusReq");
-        #self.ard.write("S")
-        self.SendChar("x")
-        self.SendChar("S")
-        self.SendChar("V")
-        self.SendChar("y")
-
-    def getArdStatus(self):
-        #self.con.send("kPrint_States")
-        self.SendChar("x")
-        self.SendChar("S")
-        self.SendChar("T")
-        self.SendChar("y")
+        self.con.send("kStatusReq");
 
     def ActivateAllWells(self):
-        #self.con.send("kActivateAllWells")
-        self.SendChar('x')
-        time.sleep(0.01)
-        self.SendChar('w')
-        time.sleep(0.01)
-        self.SendChar('A')
-        time.sleep(0.01)
-        self.SendChar('y')
-        time.sleep(0.01)
+        self.con.send("kActivateAllWells")
 
     def ActivateWell(self,well):
         if well>=0 and well <=5:
-            #self.con.send("kSelectWell_ACT",well,well,well,arg_formats="iii")
-            self.SendChar("x")
-            self.SendChar("w")
-            self.SendChar("a")
-            self.SendDigit(well)
-            self.SendChar("y")
+            self.con.send("kSelectWell_ACT",well,well,well,arg_formats="iii")
 
     def DeActivateWell(self,well):
         if well>=0 and well <=5:
-            #self.con.send("kSelectWell_DeACT",well,well,well,arg_formats="iii")
-            self.SendChar("x")
-            self.SendChar("w")
-            self.SendChar("d")
-            self.SendDigit(well)
-            self.SendChar("y")
-
-    def DeActivateAllWells(self):
-        self.SendChar("x")
-        self.SendChar("w")
-        self.SendChar("D")
-        self.SendChar("y")
-
-    def All_LED_ON(self):
-        self.SendChar("x")
-        self.SendChar("l")
-        self.SendChar("A")
-        self.SendChar("y")
-
-    def LED_ON(self,well):
-        if well>=0 and well <=5:
-            self.SendChar("x")
-            self.SendChar("l")
-            self.SendChar("a")
-            self.SendDigit(well)
-            self.SendChar("y")
-
-    def All_LED_OFF(self):
-        self.SendChar("x")
-        self.SendChar("l")
-        self.SendChar("D")
-        self.SendChar("y")
-
-    def LED_OFF(self,well):
-        if well>=0 and well <=5:
-            self.SendChar("x")
-            self.SendChar("l")
-            self.SendChar("d")
-            self.SendDigit(well)
-            self.SendChar("y")
+            self.con.send("kSelectWell_DeACT",well,well,well,arg_formats="iii")
 
     def ActivateCue(self,cueNum):
         if cueNum>0 and cueNum <=9:
-            self.SendChar("x")
-            self.SendChar("c")
-            self.SendChar("a")
-            self.SendDigit(cueNum)
-            self.SendChar("y")
+            self.con.send("kSelectCUE_ON",cueNum,arg_formats="i")
 
     def DeActivateCue(self):
-        self.SendChar("x")
-        self.SendChar("c")
-        self.SendChar("d")
-        self.SendChar("y")
+        self.con.send("kTurnCUE_OFF")
 
     def DeliverReward(self,well):
         if well>=0 and well <=5:
-            self.SendChar("x")
-            self.SendChar("p")
-            self.SendChar("a")
-            self.SendDigit(well)
-            self.SendChar("y")
+            self.con.send("kSelectPump_ON",well,well,well,arg_formats="iii")
 
     def ChangeReward(self,well, dur):
         if well>=0 and well <=5:
-            self.SendChar("x")
-            self.SendChar("p")
-            self.SendChar("c")
-            self.SendChar("w")
-            self.SendDigit(well)
-            self.SendChar("d")
-            dur_str = str(dur)
-            if len(dur_str)==1:
-                dur_str='00'+dur_str
-            elif len(dur_str)==2:
-                dur_str='0'+dur_str
-            for ch in dur_str:
-                self.SendChar(ch)
-            self.SendChar("y")
+            self.con.send("kChangePumpDur",well,dur,arg_formats="ii")
 
     def DeliverSpecifiedReward(self,well,dur):
         if well>=0 and well <=5:
-            if dur>=0 and dur<=999:
-                self.SendChar("x")
-                self.SendChar("p")
-                self.SendChar("s")
-                self.SendChar("w")
-                self.SendDigit(well)
-                self.SendChar("d")
-                dur_str = str(dur)
-                if len(dur_str)==1:
-                    dur_str='00'+dur_str
-                elif len(dur_str)==2:
-                    dur_str='0'+dur_str
-                for ch in dur_str:
-                    self.SendChar(ch)
-                self.SendChar("y")
+            self.con.send("kTurnPumpOnForXDur",well,dur, arg_formats= "ii")
+
+    def LED_ON(self,well):
+        if well>=0 and well <=5:
+            self.con.send("kLED_ON",well,well,well,arg_formats="iii")
+    def LED_OFF(self,well):
+        if well>=0 and well <=5:
+            self.con.send("kLED_OFF",well,well,well,arg_formats="iii")
+
+    def ToggleLED(self,well):
+        if well>=0 and well <=5:
+            self.con.send("kToggleLED",well,arg_formats="i")
 
     def Reset(self):
-        self.SendChar('r')
+        self.con.send("kReset_States")
+
+    def getArdStatus(self):
+        self.con.send("kPrint_States")
 
 class Maze(object):
     def __init__(self, Comm, protocol="null",headFile=[],datFile =[],npyFile=[],saveFlag=False):
@@ -370,32 +290,34 @@ class Maze(object):
             self.Protocol = protocol
             self.headFile = headFile
             self.datFile = datFile
-            self.npyFile  = npyFile
+            self.npyFile = npyFile
             self.saveFlag = saveFlag
 
             self.PythonControlFlag = False
             self.time_ref = time.time()
 
-            self._T3_Protocols = ['T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j']
-            self._T4_Protocols = ['T4a','T4b','T4c','T4d']
-            self._T5_Protocols = ['T5La','T5Lb','T5Lc','T5Ra','T5Rb','T5Rc']
-
+            self.T3_Protocols = ['T3a','T3b','T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j']
+            self.T4_Protocols = ['T4a','T4b','T4c','T4d']
+            self.T5_Protocols = ['T5La','T5Lb','T5Lc','T5Ra','T5Rb','T5Rc']
+            
             if protocol!="null":
-                # Settings
-                self.DefaultRewardDurations = np.array([4,5,10,10,10,12])
-                self.RewardDurations = np.array([4,5,10,10,10,12])
+                # Task and Maze Parameters
+                self.DefaultRewardDurations = np.array([4,5,13,10,11,19])
+                self.RewardDurations = np.array([4,5,13,10,11,19])
+                self.DurToML_Conv = np.array([1/150,1/120,1/160,1/130,1/140,1/240])
                 self.TimeOutDuration = 10 # seconds to  wait post incorrect trial.
-                # number of consecuitve trials to a given well results in a
-                # change of reward. This is a protocol specific variable.
-                self.ChangeRewardDur = 6
                 # This variable changes the  behavior of the maze for a given number of Trials.
                 # this is a protocol specific variable.
                 self.EarlyTrialThr = 4
                 # time to deactivate cue post decision well (if applicable to protocol)
                 self.CueDeactivateTime =  2
-
-
-                # Stable Variable Initiation.
+                # number of consecuitve trials to a given well results in a
+                # change of reward. This is a protocol specific variable.
+                self.ChangeRewardDur = 6
+                self.SwitchProb = 0 # cue switch probability
+                self.SwitchFlag = False
+                
+                # Constants
                 self.nWells = 6
                 self.Wells = np.arange(self.nWells)
                 self.GoalWells = [2,3,4,5]
@@ -403,13 +325,16 @@ class Maze(object):
                 self.RightGoals = [2,3]
                 self.nCues = 6
 
-                #  State Variables.
+                # State Variables
                 self.Act_Well = np.zeros(self.nWells,dtype=bool)
                 self.PrevAct_Well = np.zeros(self.nWells,dtype=bool)
                 self.LED_State = np.zeros(self.nWells,dtype=bool)
                 self.Act_Cue  = 0
                 self.Act_Cue_State = False
-                self.Queued_Cue = 0
+                self.Queued_Cue = 0                
+                self.SoftwareErrorFlag=False
+                self.IncongruencyFlag=False
+                self.IncongruencyTimer = time.time()+120
 
                 # Record keeping variables
                 self.DetectedGoalWell = -1
@@ -419,12 +344,12 @@ class Maze(object):
                 self.DetectionTracker = np.zeros(self.nWells)
                 self.CorrectWellsTracker = np.zeros(self.nWells)
                 self.ConsecutiveCorrectWellTracker = np.zeros(self.nWells)
-
+                
                 self.DataFields = ['TrialNum','CueID','GoalID','FirstDetectedGoal',
                 'SecDetectedGoal','TrialDur','Correct',
                 'SwitchTrial','SoftwareErrorFlag']
                 self.Data = np.zeros(len(self.DataFields))
-
+                
                 # Reward Tracking
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
@@ -449,12 +374,10 @@ class Maze(object):
                 self.TrialSecondDetectedGoal = -1
                 self.IncorrectArm = 0
                 self.IncorrectGoal = 0
+                self.CorrectAfterSwitch = 0
                 self.NumSwitchTrials = 0
                 self.CorrectAfterSwitch = 0
-                self.SwitchProb = 0
-                self.SwitchFlag = False
-                self.SoftwareErrorFlag=False
-
+                
                 # random initiation to chance variables
                 self.PrevDetectedGoalWell = np.random.choice(self.GoalWells)
                 self.PrevDetectedRightGoalWell = np.random.choice(self.RightGoals)
@@ -465,33 +388,25 @@ class Maze(object):
                 self.Ard_LED_State = np.zeros(self.nWells,dtype=bool)
                 self.Ard_Reward_Dur = np.zeros(self.nWells)
 
-                # Ard/Python state incongruency variables.
-                self.IncongruencyFlag=False
-                self.IncongruencyTimer = time.time()+120
-
-                if self.Protocol[:2] in ['T3','T4','T5']:
-                    while True:
-                        try:
-                            temp = input('Please enter cue switch probability [0 to 100].')
-                            if int(temp)>=0 and int(temp)<=100:
-                               self.SwitchProb = float(temp)/100.0
-                               break
-                            else:
-                                print('Invalid Switch Probability')
-                        except:
-                            print("Error interpreting probability,  try again.")
-                            continue
                 # State machine creation specefic by protocol
-                states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
+                states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)             
                 StateMachine = Machine2(self,states=states,transitions=trans,
                     ignore_invalid_triggers=True , initial='AW0')
-
-                #  Detection Trigger Creation. Includes a dummy D0 trigger.
                 self.TRIGGER = []
+                # dummy first append tr
                 self.TRIGGER.append(getattr(self,'D0'))
                 for well in (self.Wells+1):
                     self.TRIGGER.append(getattr(self,'D'+str(well)))
 
+                if self.Protocol[:2] in ['T3','T4','T5']:
+                    while True:
+                        temp = input('Please enter cue switch probability [0 to 100].')
+                        try:
+                            if int(temp)>=0 and int(temp)<=100:
+                               self.SwitchProb = float(temp)/100.0
+                               break
+                        except:
+                            print('Invalid Switch Probability. Enter integer [0-100].')
         except:
             print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
 
@@ -598,6 +513,7 @@ class Maze(object):
         print('Number of Correct Switches = ', self.CorrectAfterSwitch)
         print('Total Reward Dur = ', self.TotalRewardDur)
         print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
+        print('ML Reward per Well',self.DurToML_Conv*self.NumRewardsToEachWell)
         print('=====================================')
 
     ############################################################################
@@ -631,6 +547,11 @@ class Maze(object):
             self.headFile.write('\nTotal Reward Duration = %i \n' % (self.TotalRewardDur))
             self.headFile.write('Number of Rewards Per Well:\n')
             self.headFile.write(", ".join(map(str,self.NumRewardsToEachWell.astype(int))))
+            x=self.DurToML_Conv*self.NumRewardsToEachWell
+            self.headFile.write('Total Rewards in ML Per Well:\n')
+            self.headFile.write(", ".join(map(str,x.astype(int))))
+            
+            self.headFile.write('Total Rewards in ML = {}:\n'.format(np.sum(x)))
 
             self.headFile.write('\nTotal Reward Duration Per Well:\n')
             self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
@@ -680,6 +601,7 @@ class Maze(object):
 
         except:
             print("Warning. Error checking states",sys.exc_info())
+            
     ############# CUE Functions ################################################
     def enable_cue(self):
         # enables the use of cues
@@ -867,7 +789,7 @@ class Maze(object):
     def G34(self):
         if self.Protocol[:2] in ['T3','T5']:
             if self.Act_Cue==5:
-                self.TrialGoalWell = 34
+                self.TrialGoalWell=34
                 return True
         return False
 
@@ -875,17 +797,18 @@ class Maze(object):
         if self.Act_Cue==1 or self.Act_Cue==2 or self.Act_Cue==5:
             if self.Protocol[:2] in ['T4','T5']:
                 if self.PrevDetectedRightGoalWell==3:
-                    self.TrialGoalWell = 3
+                    self.TrialGoalWell=3
                     return True
                 else:
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
                 if random.random()<0.5:
-                    self.TrialGoalWell = 3
+                    self.TrialGoalWell=3
                     return True
                 else:
                     return False
             else:
+                self.TrialGoalWell=3
                 return True
         return False
 
@@ -901,6 +824,7 @@ class Maze(object):
                 self.TrialGoalWell = 4
                 return True
             else:
+                self.TrialGoalWell=4
                 return True
         return False
 
@@ -922,12 +846,12 @@ class Maze(object):
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
                 if random.random()<0.5:
-                    self.TrialGoalWell = 5
+                    self.TrialGoalWell=5
                     return True
                 else:
                     return False
             else:
-                self.TrialGoalWell = 5
+                self.TrialGoalWell=5
                 return True
         return False
 
@@ -935,14 +859,15 @@ class Maze(object):
         if self.Act_Cue==3 or self.Act_Cue==4 or self.Act_Cue==6:
             if self.Protocol[:2] in ['T4','T5']:
                 if self.PrevDetectedLeftGoalWell==4:
-                    self.TrialGoalWell = 6
+                    self.TrialGoalWell=6
                     return True
                 else:
                     return False
             elif self.Protocol in ['T3e','T3f','T3g','T3h','T3i','T3j']:
-                self.TrialGoalWell = 6
+                self.TrialGoalWell=6
                 return True
             else:
+                self.TrialGoalWell=6
                 return True
         return False
 
@@ -1001,7 +926,7 @@ class Maze(object):
             self.Data[tc,7]=self.SwitchFlag
             self.Data[tc,8]=self.SoftwareErrorFlag
 
-        # updates for next trial
+            print('Trial Duration = ', TrialDur)
         self.TrialCounter +=1
         if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             rr = random.random()
@@ -1023,7 +948,7 @@ class Maze(object):
         self.TrialTime=time.time()
         self.TrialFirstDetectedGoal = -1
         self.TrialSecondDetectedGoal = -1
-
+    
     def correctTrial(self):
         if not self.IncorrectTrialFlag:
             self.TrialDur = self.TrialTime-time.time()
@@ -1035,8 +960,6 @@ class Maze(object):
                 self.SwitchFlag= False
                 self.Comm.DeliverReward(0)
                 self.rewardDelivered1()
-                ## self.Comm.DeliverReward(1)
-                ## self.rewardDelivered2()
 
     def incorrectT3(self):
         self.TrialDur = self.TrialTime-time.time()
@@ -1053,8 +976,8 @@ class Maze(object):
         self.NumConsecutiveCorrectTrials = 0
         self.IncorrectGoal += 1
 
-        # if self.TrialCounter >=5 and self.Protocol in ['T4b','T4c']:
-        #     self.LED_ON()
+        if self.TrialCounter >=5 and self.Protocol in ['T4b','T4c']:
+            self.LED_ON()
 
     def incorrectT4_arm(self):
         self.TrialDur = self.TrialTime-time.time()
@@ -1235,7 +1158,7 @@ def MS_Setup(protocol,timeoutdur):
 
                 {'trigger':'D5','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'},
                 {'trigger':'D6','source':['AW3','AW4'],'dest':'TimeOut','before':'incorrectT3'}]
-
+            
             ValidCues = [1,4]
 
         elif protocol in ['T4a','T4d']:

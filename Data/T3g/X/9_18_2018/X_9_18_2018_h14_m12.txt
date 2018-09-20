@@ -1,0 +1,7 @@
+Date: 9_18_2018 
+Current Time: 14:12:50 
+Experimenter: Alex 
+Subject: X 
+Experiment: T3g 
+Baud Rate: 115200 
+Experiment Code: XXXX 

@@ -340,8 +340,9 @@ class Maze(object):
                 states,trans, self.ValidCues = MS_Setup(protocol,self.TimeOutDuration)
 
                 # Reward Tracking
-                self.DefaultRewardDurations = np.array([5,5,10,10,10,10])
-                self.RewardDurations = np.array([5,5,10,10,10,10])
+                self.DefaultRewardDurations = np.array([4,5,13,10,11,19])
+                self.RewardDurations = np.array([4,5,13,10,11,19])
+                self.DurToML_Conv = np.array([1/150,1/120,1/160,1/130,1/140,1/240])
                 self.ChangeRewardDur = 6
                 self.NumRewardsToEachWell = np.zeros(6)
                 self.CumulativeRewardDurPerWell = np.zeros(6)
@@ -486,6 +487,7 @@ class Maze(object):
         print('Number of Correct Switches = ', self.CorrectAfterSwitch)
         print('Total Reward Dur = ', self.TotalRewardDur)
         print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
+        print('ML Reward per Well',self.DurToML_Conv*self.NumRewardsToEachWell)
         print('=====================================')
 
     ############################################################################
@@ -519,6 +521,11 @@ class Maze(object):
             self.headFile.write('\nTotal Reward Duration = %i \n' % (self.TotalRewardDur))
             self.headFile.write('Number of Rewards Per Well:\n')
             self.headFile.write(", ".join(map(str,self.NumRewardsToEachWell.astype(int))))
+            x=self.DurToML_Conv*self.NumRewardsToEachWell
+            self.headFile.write('Total Rewards in ML Per Well:\n')
+            self.headFile.write(", ".join(map(str,x.astype(int))))
+            
+            self.headFile.write('Total Rewards in ML = {}:\n'.format(np.sum(x)))
 
             self.headFile.write('\nTotal Reward Duration Per Well:\n')
             self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
