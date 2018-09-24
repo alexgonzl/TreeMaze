@@ -15,14 +15,19 @@ class Machine2(Machine):
     pass
 
 def close(MS):
-    if MS.datFile:
-        if hasattr(MS.datFile,'close'):
-            MS.datFile.close()
-    if MS.headFile:
-        if hasattr(MS.headFile,'close'):
-            MS.headFile.close()
-    if MS.saveFlag:
-        np.save(MS.npyFile,MS.data)
+    try:
+        if MS.datFile:
+            if hasattr(MS.datFile,'close'):
+                MS.datFile.close()
+        if MS.headFile:
+            if hasattr(MS.headFile,'close'):
+                MS.headFile.close()
+        if MS.saveFlag:
+            if MS.Data.any():
+                np.save(MS.npyFile,MS.Data)
+    except:
+        print ("error", sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno)
+        
     MS.Comm.close()
 
 def ParseArguments():
@@ -324,6 +329,7 @@ class Maze(object):
                 self.LeftGoals = [4,5]
                 self.RightGoals = [2,3]
                 self.nCues = 6
+                self.maxNTrials = 500
 
                 # State Variables
                 self.Act_Well = np.zeros(self.nWells,dtype=bool)
@@ -348,7 +354,7 @@ class Maze(object):
                 self.DataFields = ['TrialNum','CueID','GoalID','FirstDetectedGoal',
                 'SecDetectedGoal','TrialDur','Correct',
                 'SwitchTrial','SoftwareErrorFlag']
-                self.Data = np.zeros(len(self.DataFields))
+                self.Data = np.zeros((self.maxNTrials,len(self.DataFields)))
                 
                 # Reward Tracking
                 self.NumRewardsToEachWell = np.zeros(6)
@@ -376,7 +382,7 @@ class Maze(object):
                 self.IncorrectGoal = 0
                 self.CorrectAfterSwitch = 0
                 self.NumSwitchTrials = 0
-                self.CorrectAfterSwitch = 0
+                self.NumValidSwitchTrials = 0
                 
                 # random initiation to chance variables
                 self.PrevDetectedGoalWell = np.random.choice(self.GoalWells)
@@ -451,10 +457,10 @@ class Maze(object):
         #well = event.kwargs.get('well',0)
         try:
             self.WellDetectSeq.append(well)
-            if (self.TrialGoalWell>2) and (well in self.GoalWells):
+            if (self.TrialGoalWell>2) and (well>2):
                 if self.TrialFirstDetectedGoal == -1:
                     self.TrialFirstDetectedGoal = well
-                if self.TrialSecondDetectedGoal == -1:
+                elif self.TrialSecondDetectedGoal == -1:
                     self.TrialSecondDetectedGoal = well
 
             well = well-1 # zero indexing the wells
@@ -510,6 +516,7 @@ class Maze(object):
         print('Trial Number = ', self.TrialCounter)
         print('# of Correct Trials = ', self.NumCorrectTrials)
         print('Number of Switches = ', self.NumSwitchTrials)
+        print('Number of Valid Switches = ', self.NumValidSwitchTrials)
         print('Number of Correct Switches = ', self.CorrectAfterSwitch)
         print('Total Reward Dur = ', self.TotalRewardDur)
         print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
@@ -534,26 +541,29 @@ class Maze(object):
             self.headFile.write('Number of Trials = %i \n' % (self.TrialCounter))
             self.headFile.write('Number of Correct Trials = %i \n' % (self.NumCorrectTrials))
             self.headFile.write('Number of Switches = %i \n'  % (self.NumSwitchTrials))
+            self.headFile.write('Number of Valid Switches = %i \n'  % (self.NumValidSwitchTrials))
+            
             self.headFile.write('Number of Correct Trials after a Switch = %i \n' % (self.CorrectAfterSwitch))
             self.headFile.write('Number of Incorrect Arm Trials = %i \n' % (self.IncorrectArm))
             self.headFile.write('Number of Incorrect Goal Trials = %i \n' % (self.IncorrectGoal))
 
-            self.headFile.write('Number of Well Detections: \n')
+            self.headFile.write('\nNumber of Well Detections: \n')
             self.headFile.write(", ".join(map(str,self.DetectionTracker.astype(int))))
 
             self.headFile.write('\nNumber of Correct Well Detections: \n')
             self.headFile.write(", ".join(map(str,self.CorrectWellsTracker.astype(int))))
 
             self.headFile.write('\nTotal Reward Duration = %i \n' % (self.TotalRewardDur))
-            self.headFile.write('Number of Rewards Per Well:\n')
+            self.headFile.write('Number of Rewards By Well:\n')
             self.headFile.write(", ".join(map(str,self.NumRewardsToEachWell.astype(int))))
+
             x=self.DurToML_Conv*self.NumRewardsToEachWell
-            self.headFile.write('Total Rewards in ML Per Well:\n')
+            self.headFile.write('\nRewards in ML By Well:\n')
             self.headFile.write(", ".join(map(str,x.astype(int))))
             
-            self.headFile.write('Total Rewards in ML = {}:\n'.format(np.sum(x)))
+            self.headFile.write('\nTotal Rewards in ML = {}:\n'.format(np.sum(x)))
 
-            self.headFile.write('\nTotal Reward Duration Per Well:\n')
+            self.headFile.write('Total Reward Duration Per Well:\n')
             self.headFile.write(", ".join(map(str,self.CumulativeRewardDurPerWell.astype(int))))
 
     def UpdateArdStates(self,stateVec):
@@ -915,7 +925,8 @@ class Maze(object):
     def next_trial(self):
         # data storage
         tc = self.TrialCounter
-        if tc>0:
+
+        if tc>0: # save info after trial is completed.
             self.Data[tc,0]=self.TrialCounter
             self.Data[tc,1]=self.Act_Cue
             self.Data[tc,2]=self.TrialGoalWell
@@ -926,15 +937,18 @@ class Maze(object):
             self.Data[tc,7]=self.SwitchFlag
             self.Data[tc,8]=self.SoftwareErrorFlag
 
-            print('Trial Duration = ', TrialDur)
+            print('Trial Duration = ', self.TrialDur)
         self.TrialCounter +=1
         if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
             rr = random.random()
             if rr < self.SwitchProb: ## switch cue
+                self.SwitchFlag = True
                 if self.Act_Cue==self.ValidCues[0]:
                     self.Queued_Cue = copy.copy(self.ValidCues[1])
                 else:
                     self.Queued_Cue = copy.copy(self.ValidCues[0])
+                if self.CorrectTrialFlag:
+                    self.NumValidSwitchTrials+=1
             else:
                 self.SwitchFlag = False
 
@@ -945,13 +959,14 @@ class Maze(object):
             return False
 
     def TrialStart(self):
+        self.TrialDur = -1
         self.TrialTime=time.time()
         self.TrialFirstDetectedGoal = -1
         self.TrialSecondDetectedGoal = -1
     
     def correctTrial(self):
         if not self.IncorrectTrialFlag:
-            self.TrialDur = self.TrialTime-time.time()
+            self.TrialDur = time.time()-self.TrialTime
             self.CorrectTrialFlag = True
             self.NumCorrectTrials += 1
             self.NumConsecutiveCorrectTrials += 1
@@ -962,7 +977,7 @@ class Maze(object):
                 self.rewardDelivered1()
 
     def incorrectT3(self):
-        self.TrialDur = self.TrialTime-time.time()
+        self.TrialDur = time.time()-self.TrialTime
         self.IncorrectTrialFlag = True
         self.CorrectTrialFlag = False
         self.NumConsecutiveCorrectTrials = 0
@@ -970,7 +985,7 @@ class Maze(object):
         print('Incorrect arm. Time-Out')
 
     def incorrectT4_goal(self):
-        self.TrialDur = self.TrialTime-time.time()
+        self.TrialDur = time.time()-self.TrialTime
         self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
@@ -980,7 +995,7 @@ class Maze(object):
             self.LED_ON()
 
     def incorrectT4_arm(self):
-        self.TrialDur = self.TrialTime-time.time()
+        self.TrialDur = time.time()-self.TrialTime
         self.CorrectTrialFlag = False
         self.IncorrectTrialFlag = True
         self.NumConsecutiveCorrectTrials = 0
