@@ -320,7 +320,6 @@ class Maze(object):
                 # change of reward. This is a protocol specific variable.
                 self.ChangeRewardDur = 6
                 self.SwitchProb = 0 # cue switch probability
-                self.SwitchFlag = False
                 
                 # Constants
                 self.nWells = 6
@@ -341,7 +340,7 @@ class Maze(object):
                 self.SoftwareErrorFlag=False
                 self.IncongruencyFlag=False
                 self.IncongruencyTimer = time.time()+120
-
+                
                 # Record keeping variables
                 self.DetectedGoalWell = -1
                 self.PrevDetectGoalWell = -1
@@ -381,8 +380,11 @@ class Maze(object):
                 self.IncorrectArm = 0
                 self.IncorrectGoal = 0
                 self.CorrectAfterSwitch = 0
+                self.CorrectAfterValidSwitch = 0
                 self.NumSwitchTrials = 0
                 self.NumValidSwitchTrials = 0
+                self.SwitchFlag = False
+                self.ValidSwitchFlag = False
                 
                 # random initiation to chance variables
                 self.PrevDetectedGoalWell = np.random.choice(self.GoalWells)
@@ -516,8 +518,9 @@ class Maze(object):
         print('Trial Number = ', self.TrialCounter)
         print('# of Correct Trials = ', self.NumCorrectTrials)
         print('Number of Switches = ', self.NumSwitchTrials)
-        print('Number of Valid Switches = ', self.NumValidSwitchTrials)
         print('Number of Correct Switches = ', self.CorrectAfterSwitch)
+        print('Number of Valid Switches = ', self.NumValidSwitchTrials)
+        print('Number of Correct V. Switches = ', self.CorrectAfterValidSwitch) 
         print('Total Reward Dur = ', self.TotalRewardDur)
         print('# of Rewards Per Well = ', self.NumRewardsToEachWell)
         print('ML Reward per Well',self.DurToML_Conv*self.NumRewardsToEachWell)
@@ -537,13 +540,17 @@ class Maze(object):
             self.headFile.write('Last Cue Switch Probability = %i \n' % (self.SwitchProb))
             self.headFile.write('\n\n====================================================\n\n')
             self.headFile.write('Session Summary:\n')
-            self.headFile.write('Session Time = %f \n' % (time.time() - self.time_ref))
+            self.headFile.write('Session Time = %f \n\n' % (time.time() - self.time_ref))
             self.headFile.write('Number of Trials = %i \n' % (self.TrialCounter))
-            self.headFile.write('Number of Correct Trials = %i \n' % (self.NumCorrectTrials))
+            self.headFile.write('Number of Correct Trials = %i \n\n' % (self.NumCorrectTrials))
+
             self.headFile.write('Number of Switches = %i \n'  % (self.NumSwitchTrials))
-            self.headFile.write('Number of Valid Switches = %i \n'  % (self.NumValidSwitchTrials))
+            self.headFile.write('Number of Correct Trials after a Switch = %i \n\n' % (self.CorrectAfterSwitch))
             
-            self.headFile.write('Number of Correct Trials after a Switch = %i \n' % (self.CorrectAfterSwitch))
+            
+            self.headFile.write('Number of Valid Switches = %i \n'  % (self.NumValidSwitchTrials))
+            self.headFile.write('Number of Correct Trials after a V. Switch = %i \n\n' % (self.CorrectAfterValidSwitch))
+           
             self.headFile.write('Number of Incorrect Arm Trials = %i \n' % (self.IncorrectArm))
             self.headFile.write('Number of Incorrect Goal Trials = %i \n' % (self.IncorrectGoal))
 
@@ -937,9 +944,12 @@ class Maze(object):
             self.Data[tc,7]=self.SwitchFlag
             self.Data[tc,8]=self.SoftwareErrorFlag
 
-            print('Trial Duration = ', self.TrialDur)
+            print('TrialInfo: ', self.Data[tc])
         self.TrialCounter +=1
         if self.Protocol in ['T3c','T3d','T3e','T3f','T3g','T3h','T3i','T3j','T4c','T4d','T5Ra','T5Rb','T5Rc','T5La','T5Lb','T5Lc']:
+            if self.ValidSwitchFlag and self.CorrectTrialFlag:
+                self.CorrectAfterValidSwitch+=1
+                
             rr = random.random()
             if rr < self.SwitchProb: ## switch cue
                 self.SwitchFlag = True
@@ -948,8 +958,10 @@ class Maze(object):
                 else:
                     self.Queued_Cue = copy.copy(self.ValidCues[0])
                 if self.CorrectTrialFlag:
+                    self.ValidSwitchFlag = True
                     self.NumValidSwitchTrials+=1
             else:
+                self.ValidSwitchFlag = False
                 self.SwitchFlag = False
 
     def earlyTrials(self):
@@ -970,7 +982,7 @@ class Maze(object):
             self.CorrectTrialFlag = True
             self.NumCorrectTrials += 1
             self.NumConsecutiveCorrectTrials += 1
-            if self.SwitchFlag and self.NumConsecutiveCorrectTrials>0:
+            if self.SwitchFlag:
                 self.CorrectAfterSwitch += 1
                 self.SwitchFlag= False
                 self.Comm.DeliverReward(0)

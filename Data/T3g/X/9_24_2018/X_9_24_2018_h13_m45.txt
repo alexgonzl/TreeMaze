@@ -1,0 +1,18 @@
+Date: 9_24_2018 
+Current Time: 13:45:39 
+Experimenter: Alex 
+Subject: X 
+Experiment: T3g 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Last Cue Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 453.780845 
+Number of Trials = 8 
+Number of Correct Trials = 5 
+Number of Switches = 4 
+Number of Valid Switches = 2 
