@@ -307,8 +307,8 @@ class Maze(object):
             
             if protocol!="null":
                 # Task and Maze Parameters
-                self.DefaultRewardDurations = np.array([4,5,13,10,11,19])
-                self.RewardDurations = np.array([4,5,13,10,11,19])
+                self.DefaultRewardDurations = np.array([4,5,13,10,11,30])
+                self.RewardDurations = np.array([4,5,13,10,11,30])
                 self.DurToML_Conv = np.array([1/150,1/120,1/160,1/130,1/140,1/240])
                 self.TimeOutDuration = 10 # seconds to  wait post incorrect trial.
                 # This variable changes the  behavior of the maze for a given number of Trials.
