@@ -1,0 +1,39 @@
+Date: 12_1_2018 
+Current Time: 12:40:27 
+Experimenter: Alex 
+Subject: Cl 
+Experiment: T3g 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Last Cue Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 1176.729599 
+
+Number of Trials = 28 
+Number of Correct Trials = 18 
+
+Number of Switches = 12 
+Number of Correct Trials after a Switch = 8 
+
+Number of Valid Switches = 7 
+Number of Correct Trials after a V. Switch = 6 
+
+Number of Incorrect Arm Trials = 8 
+Number of Incorrect Goal Trials = 0 
+
+Number of Well Detections: 
+66, 39, 8, 13, 21, 20
+Number of Correct Well Detections: 
+28, 27, 3, 5, 4, 6
+Total Reward Duration = 603 
+Number of Rewards By Well:
+36, 27, 3, 5, 5, 6
+Rewards in ML By Well:
+0, 0, 0, 0, 0, 0
+Total Rewards in ML = 0.5829258241758242:
+Total Reward Duration Per Well:
+144, 135, 39, 50, 55, 180
