@@ -1,0 +1,7 @@
+Date: 12_6_2018 
+Current Time: 16:12:15 
+Experimenter: David 
+Subject: Ca 
+Experiment: T1 
+Baud Rate: 115200 
+Experiment Code: XXXX 

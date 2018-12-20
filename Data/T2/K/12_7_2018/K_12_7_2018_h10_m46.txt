@@ -1,0 +1,39 @@
+Date: 12_7_2018 
+Current Time: 10:46:58 
+Experimenter: Alex 
+Subject: K 
+Experiment: T2 
+Baud Rate: 115200 
+Experiment Code: XXXX 
+Last Cue Switch Probability = 0 
+
+
+====================================================
+
+Session Summary:
+Session Time = 3729.320561 
+
+Number of Trials = 78 
+Number of Correct Trials = 77 
+
+Number of Switches = 0 
+Number of Correct Trials after a Switch = 0 
+
+Number of Valid Switches = 0 
+Number of Correct Trials after a V. Switch = 0 
+
+Number of Incorrect Arm Trials = 0 
+Number of Incorrect Goal Trials = 0 
+
+Number of Well Detections: 
+138, 149, 31, 27, 92, 31
+Number of Correct Well Detections: 
+77, 77, 14, 11, 48, 4
+Total Reward Duration = 1877 
+Number of Rewards By Well:
+78, 77, 14, 14, 48, 11
+Rewards in ML By Well:
+0, 0, 0, 0, 0, 0
+Total Rewards in ML = 1.7455494505494507:
+Total Reward Duration Per Well:
+312, 385, 182, 140, 528, 330
