@@ -307,9 +307,17 @@ class Maze(object):
             
             if protocol!="null":
                 # Task and Maze Parameters
-                self.DefaultRewardDurations = np.array([4,5,13,10,11,30])
-                self.RewardDurations = np.array([4,5,13,10,11,30])
-                self.DurToML_Conv = np.array([1/150,1/120,1/160,1/130,1/140,1/240])
+                if protocol in self.T3_Protocols:
+                    self.DefaultRewardDurations = np.array([4,5,10,10,10,40])
+                    self.RewardDurations = np.array([4,5,10,10,10,40])
+                elif protocol == 'T2':
+                    self.DefaultRewardDurations = np.array([6,6,12,12,12,40])
+                    self.RewardDurations = np.array([6,6,12,12,12,40])
+                else:
+                    self.DefaultRewardDurations = np.array([10,10,10,10,10,40])
+                    self.RewardDurations = np.array([10,10,10,10,10,40])
+                    
+                self.DurToML_Conv = np.array([1/120,1/120,1/120,1/120,1/120,1/400])
                 self.TimeOutDuration = 10 # seconds to  wait post incorrect trial.
                 # This variable changes the  behavior of the maze for a given number of Trials.
                 # this is a protocol specific variable.
