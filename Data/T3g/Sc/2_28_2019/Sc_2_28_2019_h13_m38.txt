@@ -1,0 +1,7 @@
+Date: 2_28_2019 
+Current Time: 13:38:16 
+Experimenter: Alex 
+Subject: Sc 
+Experiment: T3g 
+Baud Rate: 115200 
+Experiment Code: XXXX 
